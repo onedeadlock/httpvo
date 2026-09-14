@@ -54,6 +54,14 @@
 #   define HAVE__ARM_NEON__ 0
 #endif
 
+#define __UNALIGNED_ACCESS__ 0
+#if defined(__x86_64__) || defined(__amd64__) || defined(__aarch64__)
+#    define __HAVE_SUPPORT_FOR_UNALIGNED__ __UNALIGNED_ACCESS__
+#elif defined(_M_X64) || defined(_M_AMD64) || defined(_M_ARM64)
+#    define __HAVE_SUPPORT_FOR_UNALIGNED__ __UNALIGNED_ACCESS__
+#else
+#    define __HAVE_SUPPORT_FOR_UNALIGNED__ 0
+#endif
 /////////////////////////////////////
 ////////// PERFORMANCE //////////////
 #ifndef OPTIMIZE_FOR_MOST_CASE
@@ -119,7 +127,7 @@
 
 #define U32(x)  static_cast<const u32_t>(x)
 #define U64(x)  static_cast<const u64_t>(x)
-#define U128(x) static_cast<const u128_t>(x)
+#define U32P(b) reinterpret_cast<u32_t *>(b)[0]
 
 //////////////////////////////
 //////////// DHTTP ///////////

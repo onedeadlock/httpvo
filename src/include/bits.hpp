@@ -42,12 +42,12 @@ namespace dhttp::bits
         return andnot(x, x >> 1);
     }
 
-    make_flat inline u64_t ltrim_u64(u64_t x)
+    make_flat inline u64_t bltrim(u64_t x)
     {
         return andnot(x, x << 8);
     }
 
-    make_flat inline u64_t rtrim_u64(u64_t x)
+    make_flat inline u64_t brtrim(u64_t x)
     {
         return andnot(x, x >> 8);
     }

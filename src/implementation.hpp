@@ -159,21 +159,20 @@ namespace dhttp::Implementation
 
     struct alignas(1) State
     {
-        bool request_completed : 1 = 0;
-        bool pending_value     : 1 = 0;
-        bool trailing_ret      : 1 = 0;
-        bool trailing_wsp      : 1 = 0;
-        bool parse_completed   : 1 = 0;
+        bool request_completed : 1;
+        bool pending_value     : 1;
+        bool trailing_ret      : 1;
+        bool trailing_wsp      : 1;
+        bool parse_completed   : 1;
 
         inline bool completed_request_line(bool x)  { return request_completed = x; }
         inline void set_pending_value(bool x)       { pending_value = x; }
         inline void set_trailing_ret(bool x)        { trailing_ret  = x; }
-        inline void set_trailing_whitespace(bool x) { trailing_wsp  = x; }
         inline void set_trailing_wsp(bool x)        { trailing_wsp  = x; }
         inline bool completed_request_line(void)  const { return request_completed; }
         inline bool has_pending_value(void)       const { return pending_value;     }
         inline bool has_trailing_ret(void)        const { return trailing_ret;      }
-        inline bool has_trailing_whitespace(void) const { return trailing_wsp;      }
+        inline bool has_trailing_wsp(void)        const { return trailing_wsp;      }
     };
 
     struct ReqLine
@@ -213,13 +212,13 @@ namespace dhttp::Implementation
     class http
     {
     public:
-        http(void) : unused{true} {}
+        http(void) : at_start_line{true} {}
 
         void reset(std::size_t run_size=0, std::size_t incr=0, std::size_t out_size=0)
         {
             req_type  = Reqtype::type::request; out_reader = {out_size, 1, 3};
             in_reader = {run_size, incr}; version = -1; n_bytes_to_complete = 0;
-            state     = {0}; unused  = true;
+            state     = {0}; at_start_line = true;
             reqline.req_line[2] = reqline.req_line[1] = reqline.req_line[0] = 0;
         }
 
@@ -243,7 +242,7 @@ namespace dhttp::Implementation
         // state
         State state {0};
         // true after reset
-        bool unused;
+        bool at_start_line;
 
         template <typename T, T out_size, int N>
         int parse(void *in, std::size_t in_size, req<T, out_size>& out, std::size_t run_size, std::size_t rem);
@@ -259,14 +258,14 @@ namespace dhttp::Implementation
             return stat < 0;
         }
 
-        inline int set_version(u8_t i)
+        inline int set_minor_version(u8_t i)
         {
             return (this->version = i ^ '\x30') < 10;
         }
 
         inline bool req_version_is_http_1(void *b)
         {
-            return common::version_is_http_1(b) and set_version(reinterpret_cast<u8_t *>(b)[7]);
+            return common::version_is_http_1(b) and set_minor_version(reinterpret_cast<u8_t *>(b)[7]);
         }
 
         inline u16_t req_size(ReqLine::inttype (&req)[], int i)
@@ -275,11 +274,19 @@ namespace dhttp::Implementation
                                                             : (req[i - 1] - (req[i - 0]) - 1); // -1 for the sp seperator
         }
 
-        inline bool req_version_tag(void *in, Reqtype::req_index &i)
+        inline bool set_version_tag(void *in)
         {
             static constexpr u8_t req_version_required_size = 8; // len(HTTP/1.x)
-            return (req_size(reqline.req_line, i[0]) == req_version_required_size) and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.req_line[i[0] + 1] + 1);
+            auto i = Reqtype::index[req_type][0];
+            bool is_correct_size = req_size(reqline.req_line, i) == req_version_required_size;
+            return is_correct_size and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.req_line[i + 1]);
         }
+
+        inline int end_of_header_line(void *in, auto error)
+        {
+            state.completed_request_line(true);
+            return -(error or set_version_tag(in) isnot http_1);
+        };
     };
 };
 #endif //IMPLEMENTATION_HPP
