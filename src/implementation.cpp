@@ -1,13 +1,10 @@
 #ifndef DHTTP_IMPLEMENTATION_MAIN_HPP
 #define DHTTP_IMPLEMENTATION_MAIN_HPP
 #include "implementation.hpp"
-#include "scalar_impl.hpp"
+//#include "scalar_impl.hpp"
 
 namespace dhttp::Implementation
 {   
-    bool http_1 = true;
-    bool done   = true;
-
     template <int N>
     inline bool req_header_value(void *in, const simdv<N>& v, u64_t lf, u64_t cr, u64_t crlf, bool done)
     {
@@ -34,7 +31,7 @@ namespace dhttp::Implementation
             return  (crlf & crlf >> 2) & 0b100 ? -400 /* empty request */ : -400 /* blank line TODO: skip */;
         if (state.has_trailing_ret()) [[unlikely]]
         {
-            if not (lf & 0b1)
+            if (not (lf & 0b1))
                 return -400;
             lf &= ~0x1ULL;
             reqline.req_line[out_reader.at()] -= 1; // -cr
@@ -51,7 +48,7 @@ namespace dhttp::Implementation
         for (; mask and not out_reader.is_zero(); mask &= mask - 1)
             reqline.req_line[out_reader.decr()] = in_reader.at() + bits::tzcnt(mask);
 
-        if not (crlf)
+        if (not crlf)
         {
             state.set_trailing_ret(static_cast<bool>(cr & simd<N>::msb));
             state.set_trailing_whitespace(static_cast<bool>(sp & simd<N>::msb));
@@ -62,7 +59,7 @@ namespace dhttp::Implementation
         crlf &= crlf - 1;
         in_reader.incr_by(reqline.req_line[out_reader.at() + 1] + 2); // +2 for cr and lf
         state.completed_request_line(true);
-        return -(mask or req_version_tag(reqline.req_line, in, Reqtype::index[this->req_type]) isnot http_1);
+        return -(mask or req_version_tag(in, Reqtype::index[this->req_type]) isnot http_1);
     }
 
     template <typename T, T out_size, int N>
@@ -80,12 +77,12 @@ namespace dhttp::Implementation
         if (state.has_pending_value())
         {
             auto& value = out[out_reader.at()].value;
-            if not (crlf)
+            if (not crlf)
                 return in_reader.incr(), req_header_value(v);
             set_header(value, out[out_reader.incr()].name, in_reader.at(), crlf, 2);
             crlf &= crlf - 1;
             state.set_pending_value(false);
-            if not (req_header_value(v, lf, cr, __crlf) or trim_whitespace<T>(in, value.pos, value.len)) [[unlikely]]
+            if (not (req_header_value(v, lf, cr, __crlf) or trim_whitespace<T>(in, value.pos, value.len))) [[unlikely]]
                 return -400;
         }
         for (u64_t col = simdv<N>::cmp_eq(v, v_col).to_bitmask(); true; )
@@ -96,11 +93,11 @@ namespace dhttp::Implementation
             if constexpr (not OPTIMIZE_FOR_MOST_CASE)
                 if (crlf and bits::lsb(crlf) < bits::lsb(col)) [[unlikely]]
                     return -400;
-            if not (col)
+            if (not col)
                 return in_reader.incr();
             // set position and length of name
             set_header(name, value, in_reader.at(), col, 1);
-            if not (crlf)
+            if (not crlf)
             {
                 state.set_pending_value(true);
                 in_reader.incr();

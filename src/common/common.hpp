@@ -1,6 +1,9 @@
 #ifndef DHTTP_COMMON_HPP
 #define DHTTP_COMMON_HPP
 #include "../include/definition.hpp"
+#include "../include/constants.hpp"
+#include "../include/bits.hpp"
+#include "../include/tables.hpp"
 
 namespace dhttp::common
 {
@@ -11,12 +14,12 @@ namespace dhttp::common
 
     inline u64_t _cmpeqz(u64_t v)
     {
-        return ~(v | ((v & constant::c7f) + constant::c7f)) & constant::c80;
+        return bits::andnot(constant::c80, v | ((v & constant::c7f) + constant::c7f));
     }
 
     inline u64_t _cmpeqz_(u64_t v)
     {
-        return ((v & constant::c7f) - constant::c01) & ~v & constant::c80;
+        return ((v & constant::c7f) - constant::c01) & bits::andnot(constant::c80, v);;
     }
 
     inline u64_t _cmpeq(u64_t u, u64_t v)
@@ -38,33 +41,30 @@ namespace dhttp::common
     inline u64_t _cmplt(u64_t v)
     {
         static_assert(A < 0x7f);
-
         static constexpr u64_t a = _dup(0x7f + A);
-        return (a - (v & constant::c7f)) & (~v & constant::c80);
+        return (a - (v & constant::c7f)) & bits::andnot(constant::c80, v);
     }
 
     template<u8_t A>
     inline u64_t _cmpgt(u64_t v)
     {
         static_assert(A < 0x7f);
-
         static constexpr u64_t a = _dup(0x7f - A);
         return (v | (a + (v & constant::c7f))) & constant::c80;
     }
 
-    template <u8_t A, u8_t B>
-    inline u64_t _cmp_gt_and_lt(u64_t v)
+    template <u8_t A, u8_t B, typename T>
+    inline u64_t _cmp_gt_and_lt(T v)
     {
         static_assert(A < 0x7f && B < 0x80);
-
-        static constexpr u64_t a = _dup(0x7f - A);
-        static constexpr u64_t b = _dup(0x7f + B);
-        return (b - (v & constant::c7f)) & (a + (v & constant::c7f)) & (~v & constant::c80);
+        static constexpr T a = static_cast<T>(_dup(0x7f - A));
+        static constexpr T b = static_cast<T>(_dup(0x7f + B));
+        return (b - (v & constant::c7f)) & (a + (v & constant::c7f)) & bits::andnot(constant::c80, v);
     }
 
     inline u64_t ascii_letters(u64_t v)
     {
-        return (constant::Z - (v & constant::AZ_const)) & (constant::A + (v & constant::AZ_const)) & (~v & constant::c80);
+        return (constant::Z - (v & constant::AZ_const)) & (constant::A + (v & constant::AZ_const)) & bits::andnot(constant::c80, v);
     }
 
     inline u64_t ascii_numbers_v(u64_t v)
@@ -91,7 +91,7 @@ namespace dhttp::common
     {
         // Non printable characters here are 0x7f (DEL) or characters below 0x20 (sp)
         static constexpr u64_t u = constant::c80 | constant::c20;
-        return (u - (((v & constant::c7f) + constant::c01) & constant::c7f)) & (~v & constant::c80);
+        return (u - (((v & constant::c7f) + constant::c01) & constant::c7f)) & bits::andnot(constant::c80, v);
     }
 
     inline u8_t is_whitespace(u8_t x)
@@ -159,9 +159,7 @@ namespace dhttp::common
 
     inline bool version_is_http_1(void *b)
     {
-        static constexpr u64_t mask = U64('\x48') | U64('\x54') << 8 | U64('\x54') << 16 | U64('\x50') << 24 |
-                                      U64('\x2f') << 32 | U64('\x2e') << 40 | U64('\x31') << 48; // H  T  T  P  /  1  .
-        return mask == (reinterpret_cast<u64_t *>(b)[0] & 0x00ffffffffffffff);
+        return constant::mask_http_1 == (reinterpret_cast<u64_t *>(b)[0] & 0x00ffffffffffffffULL);
     }  
 }
 #endif

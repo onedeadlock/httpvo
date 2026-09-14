@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef DHTTP_DEFINITION_H
+#define DHTTP_DEFINITION_H
 #include <cstdint>
 #include <cstring>
 #include <array>
@@ -7,11 +7,10 @@
 #include <limits>
 #include <cassert>
 
-#define __SSE4_2__ 1 // remove this
+//#define __SSE4_2__ 1 // remove this
 
 #define is ==
 #define isnot !=
-#define not(x) (!(x))
 
 #if defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER))
 #    undef  __HAVE_GNUC__
@@ -33,7 +32,7 @@
 #        define HAVE__SSE2__   1
 #    elif defined(__SSSE3__)
 #        define HAVE__SSSE3__  1
-#    elif defined (__SSE4_2__)
+#    elif defined(__SSE4_2__)
 #        define HAVE__SSE4_2__ 1
 #    endif
 #    include <immintrin.h>
@@ -42,11 +41,18 @@
 #    include <arm_neon.h>
 #endif
 
-#if defined(__SIZEOF_INT128__)
-#    define HAVE__INT128__ 1
+#ifndef HAVE__AVX2__
+#    define HAVE__AVX2__ 0
 #endif
-
-#define HAVE_SHUFFLE__ 0 // set if we have ssse3
+#ifndef HAVE__SSE2__
+#    define HAVE_SSE2__  0
+#endif
+#ifndef HAVE__SSE4_2__
+#    define HAVE__SSE4_2__  0
+#endif
+#ifndef HAVE__ARM_NEON__
+#   define HAVE__ARM_NEON__ 0
+#endif
 
 /////////////////////////////////////
 ////////// PERFORMANCE //////////////
@@ -114,13 +120,6 @@
 #define U32(x)  static_cast<const u32_t>(x)
 #define U64(x)  static_cast<const u64_t>(x)
 #define U128(x) static_cast<const u128_t>(x)
-#define UMAX(x) static_cast<const umax_t>(x)
-
-#if HAVE__INT128__
-#   define UMAX_C(x) static_cast<const umax_t>(x)
-#else
-#   define UMAX_C(x) 0
-#endif
 
 //////////////////////////////
 //////////// DHTTP ///////////
@@ -133,12 +132,15 @@ namespace dhttp
     using u16_t = std::uint16_t;
     using u32_t = std::uint32_t;
     using u64_t = std::uint64_t;
-#if HAVE__INT128__
-    using u128_t = __uint128_t;
-    using umax_t = __uint128_t;
-#else
-    using umax_t = uint64_t;
-#endif
 
     auto pass   = []{};
+
+     static constexpr bool mix_avx512_avx2 = MIX_AVX512_AVX2;
+     static constexpr bool mix_avx2_sse4   = MIX_AVX2_SSE;
+
+     static constexpr u8_t AVX512 = 1;
+     static constexpr u8_t AVX2   = 2;
+     static constexpr u8_t SSE4   = 3;
+     static constexpr u8_t INT64  = 4;
 }
+#endif // DHTTP_DEFINITION_HPP

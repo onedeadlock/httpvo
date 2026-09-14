@@ -1,17 +1,16 @@
 #ifndef DHTTP_SIMD_WESTMERE_HPP
 #define DHTTP_SIMD_WESTMERE_HPP
 #include "../../include/definition.hpp"
-#include "../../common/common.hpp"
+#include "../../include/constants.hpp"
 
 namespace dhttp::simd::westmere
 {
-    using namespace common;
     template <int N> alignas(N) struct simdv;
 
     template<>
     alignas(32) struct simdv<32>
     {
-        static constexpr int   spec = simd::SSE4;
+        static constexpr int   spec = SSE4;
         static constexpr int   size = 32;
         static constexpr u64_t msb  = constant::msb_32;
         static constexpr u64_t msb3 = constant::msb3_32;
@@ -171,7 +170,7 @@ namespace dhttp::simd::westmere
     template<>
     alignas(64) struct simdv<64>
     {
-        static constexpr int   spec = simd::SSE4;
+        static constexpr int   spec = SSE4;
         static constexpr int   size = 64;
         static constexpr u64_t msb  = constant::msb_64;
         static constexpr u64_t msb3 = constant::msb3_32;

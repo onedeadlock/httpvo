@@ -1,5 +1,5 @@
-#ifndef DHTTP_DEFINITION_HPP
-#define DHTTP_DEFINITION_HPP
+#ifndef DHTTP_TABLES_HPP
+#define DHTTP_TABLES_HPP
 #include "definition.hpp"
 
 namespace dhttp::tables
@@ -35,4 +35,4 @@ namespace dhttp::tables
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 }
-#endif // DHTTP_DEFINITION_HPP
+#endif // DHTTP_TABLES_HPP

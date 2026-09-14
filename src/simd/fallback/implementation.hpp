@@ -1,6 +1,7 @@
 #ifndef DHTTP_SIMD_FALLBACK_HPP
 #define DHTTP_SIMD_FALLBACK_HPP
 #include "../../include/definition.hpp"
+#include "../../common/common.hpp"
 
 namespace dhttp::simd::fallback
 {
@@ -11,7 +12,7 @@ namespace dhttp::simd::fallback
     template<>
     alignas(32) struct simdv<32>
     {
-        static constexpr int spec   = simd::INT64;
+        static constexpr int spec   = INT64;
         static constexpr int size   = 32;
         static constexpr u64_t msb  = constant::msb_32;
         static constexpr u64_t msb3 = constant::msb3_32;
@@ -169,7 +170,7 @@ namespace dhttp::simd::fallback
     template<>
     alignas(64) struct simdv<64>
     {
-        static constexpr int spec   = simd::INT64;
+        static constexpr int spec   = INT64;
         static constexpr int size   = 64;
         static constexpr u64_t msb  = constant::msb_64;
         static constexpr u64_t msb3 = constant::msb3_64;

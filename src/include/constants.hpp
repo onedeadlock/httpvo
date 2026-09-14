@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DHTTP_CONSTANTS_HPP
+#define DHTTP_CONSTANTS_HPP
 #include "definition.hpp"
 
 namespace dhttp::constant
@@ -12,7 +13,10 @@ namespace dhttp::constant
     static constexpr u64_t c01 = 0x0101010101010101ULL;
     static constexpr u64_t c09 = 0x0909090909090909ULL;
     static constexpr u64_t c20 = 0x2020202020202020ULL;
+    static constexpr u64_t c0a = 0x0a0a0a0a0a0a0a0aULL;
     static constexpr u64_t c30 = 0x3030303030303030ULL;
+    static constexpr u64_t c3a = 0x3a3a3a3a3a3a3a3aULL;
+    static constexpr u64_t c0d = 0x0d0d0d0d0d0d0d0dULL;
     static constexpr u64_t cdf = 0xdfdfdfdfdfdfdfdfULL;
 
     static constexpr u64_t compress = 0x0002040810204081ULL;
@@ -28,6 +32,8 @@ namespace dhttp::constant
     static constexpr u64_t A = U64('\x7f' - '\x40') * c01;
     static constexpr u64_t Z = U64('\x7f' + '\x5b') * c01;
 
+    static constexpr u64_t mask_http_1 = 13843054604866632ULL; // H  T  T  P  /  1  .
+
     static constexpr u64_t DeBruijn64_const = 0x03f79d71b4cb0a89ULL;
 
     static constexpr u8_t DeBruijn64_seq[64]{
@@ -40,3 +46,4 @@ namespace dhttp::constant
         25, 39, 14, 33, 19, 30, 9,  24,
         13, 18, 8,  12, 7,  6,  5,  63};
 }
+#endif // DHTTP_CONSTANTS_HPP

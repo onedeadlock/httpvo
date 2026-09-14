@@ -2,15 +2,20 @@
 #define DHTTP_IMPLEMENTATION_HPP
 
 #include "include/definition.hpp"
-#include "simd/implementation.hpp"
-#include "include/bits.hpp"
 #include "include/constants.hpp"
+#include "include/bits.hpp"
 #include "common/common.hpp"
+//#include "simd/implementation.hpp"
 
 namespace dhttp::Implementation
 {
     constexpr int COMPLETE = 0;
     constexpr int EXPECT_DATA = 1;
+
+    bool http_1 = true;
+    bool done   = true;
+
+    template <int N> struct simdv;
 
     template <typename T, T N>
     struct req
@@ -21,7 +26,6 @@ namespace dhttp::Implementation
 
         struct __pair
         {
-            using int_type as T;
             T len, pos;
         };
 
@@ -58,26 +62,29 @@ namespace dhttp::Implementation
     };
 
     struct Reader {
-        Reader(u64_t max=std::numeric_limits<u64_t>::max()-1, u64_t incr=1) noexcept
+        Reader(std::size_t max=std::numeric_limits<std::size_t>::max()-1, std::size_t incr=1, std::size_t i=0) noexcept
         {
-            assert (max  < std::numeric_limits<u64_t>::max());
-            assert (incr < __max);
-            __i    = 0;
+            assert (max  < std::numeric_limits<std::size_t>::max());
+            assert (incr < std::numeric_limits<std::size_t>::max());
+            assert (i    < std::numeric_limits<std::size_t>::max());
+
+            __i    = i;
             __incr = incr;
             __max  = max;
         }
 
 
-        int set(u64_t max, u64_t incr=1) noexcept
+        int set(std::size_t max, std::size_t incr=1, std::size_t i=0) noexcept
         {
-             if (__i > max or incr > max)
+             if (i and (__i > max or incr > max))
                 return -1;
             __incr = incr;
             __max  = max;
+            __i    = i;
             return 0;
         }
 
-        inline int set_incr(u64_t incr) noexcept
+        inline int set_incr(std::size_t incr) noexcept
         {
             if (incr > __max)
                 return -1;
@@ -85,72 +92,72 @@ namespace dhttp::Implementation
             return 0;
         }
 
-        inline u64_t get_incr(void) const noexcept
+        inline std::size_t get_incr(void) const noexcept
         {
             return __incr;
         }
 
-        u64_t at(void) const noexcept
+        std::size_t at(void) const noexcept
         {
             return __i;
         }
 
-        u64_t size(void) const noexcept
+        std::size_t size(void) const noexcept
         {
             return __i;
         }
 
-        u64_t capacity(void) const noexcept
+        std::size_t capacity(void) const noexcept
         {
             return __max;
         }
         
-        u64_t iszero(void) const noexcept
+        std::size_t iszero(void) const noexcept
         {
             return __i == 0;
         }
 
-        inline u64_t incr_by(u64_t incr) noexcept
+        inline std::size_t incr_by(std::size_t incr) noexcept
         {
             assert(__i <= (__max - incr));
             return __i += incr;
         }
 
-        inline u64_t decr_by(u64_t decr) noexcept
+        inline std::size_t decr_by(std::size_t decr) noexcept
         {
-            assert(__i >= (__max - decr));
+            assert(__i >= decr);
             return __i -= decr;
         }
 
-        inline u64_t incr(void) noexcept
+        inline std::size_t incr(void) noexcept
         {
             assert(__i <= (__max - __incr));
             return __i += __incr;
         }
 
-        inline u64_t decr(void) noexcept
+        inline std::size_t decr(void) noexcept
         {
-            assert(__i >= (__max - __incr));
+            assert(__i >= __incr);
             return __i -= __incr;
         }
 
-        inline u64_t operator++(void)
+        inline std::size_t operator++(void)
         {
             return incr();
         }
 
-        inline u64_t operator--(void)
+        inline std::size_t operator--(void)
         {
             return decr();
         }
 
         private:
-        u64_t __i;
-        u64_t __incr;
-        u64_t __max;
+        std::size_t __i;
+        std::size_t __incr;
+        std::size_t __max;
     };
 
-    alignas(1) struct State
+    struct alignas(1) State
     {
         bool request_completed : 1 = 0;
         bool pending_value     : 1 = 0;
@@ -162,21 +169,23 @@ namespace dhttp::Implementation
         inline void set_pending_value(bool x)       { pending_value = x; }
         inline void set_trailing_ret(bool x)        { trailing_ret  = x; }
         inline void set_trailing_whitespace(bool x) { trailing_wsp  = x; }
+        inline void set_trailing_wsp(bool x)        { trailing_wsp  = x; }
         inline bool completed_request_line(void)  const { return request_completed; }
         inline bool has_pending_value(void)       const { return pending_value;     }
         inline bool has_trailing_ret(void)        const { return trailing_ret;      }
         inline bool has_trailing_whitespace(void) const { return trailing_wsp;      }
     };
 
-    struct req_line
+    struct ReqLine
     {
+        using inttype = u64_t;
         /*
             [N]   request | response
             ______________|________
-            [3]  method   | version
-            [2]  uri      | status
-            [1]  version  | msg
-            [0]  NULL     | NULL
+            [3]  NULL     | NULL
+            [2]  method   | version
+            [1]  uri      | status
+            [0]  version  | msg
         */
         u64_t req_line[4];
     };
@@ -193,39 +202,46 @@ namespace dhttp::Implementation
             ////////////////////////////////////////////////////
             //// REQUEST {req_method, req_uri, req_version} ////
             ////////////////////////////////////////////////////
-            {1, 2, 3},
+            {0, 1, 2},
             ////////////////////////////////////////////////////
             //// RESPONSE {req_version, req_stat, req_msg} /////
             ////////////////////////////////////////////////////
-            {3, 2, 1},
+            {2, 1, 0},
         };
     };
 
     class http
     {
     public:
-        http(void) { reset(); }
+        http(void) : unused{true} {}
 
-        void reset(std::size_t run_size=0, int incr=0, std::size_t out_size=3)
+        void reset(std::size_t run_size=0, std::size_t incr=0, std::size_t out_size=0)
         {
-            req_type  = Reqtype::type::request; out_reader = {out_size, 1};
+            req_type  = Reqtype::type::request; out_reader = {out_size, 1, 3};
             in_reader = {run_size, incr}; version = -1; n_bytes_to_complete = 0;
             state     = {0}; unused  = true;
+            reqline.req_line[2] = reqline.req_line[1] = reqline.req_line[0] = 0;
         }
 
+        int type(void)
+        {
+            return static_cast<int>(req_type);
+        }
+
+        int parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size);
     private:
         // header line (version, method, version, status, message)
-        req_line reqline;
+        ReqLine reqline {0};
         // internal in & out buffer counter
-        Reader in_reader, out_reader;
+        Reader in_reader {0, 64}, out_reader {0, 1, 3};
         // request type (request or response)
-        Reqtype::type req_type;
+        Reqtype::type req_type = Reqtype::type::request;
         // http minor version (the major is tested to be 1)
-        int  version;
+        int  version {-1};
         // number of expected eop (end of parse) bytes (crlfcrlf)
-        int  n_bytes_to_complete;
+        int  n_bytes_to_complete {0};
         // state
-        State state;
+        State state {0};
         // true after reset
         bool unused;
 
@@ -238,7 +254,6 @@ namespace dhttp::Implementation
         template <typename T, T out_size>
         int nparse_no_rescan(void *in, std::size_t in_size, std::size_t run_size, req<T, out_size> &out);
 
-        int http::nparse_header_line_fallback(void *in, std::size_t in_size, std::size_t run_size, u64_t *out, std::size_t out_size);
         inline bool parse_failed(int stat)
         {
             return stat < 0;
@@ -254,16 +269,16 @@ namespace dhttp::Implementation
             return common::version_is_http_1(b) and set_version(reinterpret_cast<u8_t *>(b)[7]);
         }
 
-        inline u16_t req_size(u64_t (&req)[], int i)
+        inline u16_t req_size(ReqLine::inttype (&req)[], int i)
         {
-            return this->req_type is Reqtype::type::request ? (req[i - 0] - (req[i + 1]) - 1)
+            return this->req_type is Reqtype::type::request ?  req[i - 0] - (req[i + 1])
                                                             : (req[i - 1] - (req[i - 0]) - 1); // -1 for the sp seperator
         }
 
-        inline bool req_version_tag(u64_t (&req)[], void *in, Reqtype::req_index &i)
+        inline bool req_version_tag(void *in, Reqtype::req_index &i)
         {
-            static constexpr u16_t req_version_required_size = 8; // len(HTTP/1.x)
-            return (req_size(req, i[0]) == req_version_required_size) and req_version_is_http_1(in + req[i[0]]);
+            static constexpr u8_t req_version_required_size = 8; // len(HTTP/1.x)
+            return (req_size(reqline.req_line, i[0]) == req_version_required_size) and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.req_line[i[0] + 1] + 1);
         }
     };
 };

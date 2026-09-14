@@ -1,6 +1,7 @@
-#ifndef DHTTP_BITS_H
-#define DHTTP_BITS_H
+#ifndef DHTTP_BITS_HPP
+#define DHTTP_BITS_HPP
 #include "definition.hpp"
+#include "constants.hpp"
 #if   __HAVE_MSVC__
 #   include <intrin.h>
 #elif __HAVE_GNUC__
@@ -17,6 +18,12 @@ namespace dhttp::bits
 #    define _32_64_uint_type typename
 #endif
 
+    template <_32_64_uint_type T, _32_64_uint_type Y>
+    make_flat inline T andnot(T x, Y y)
+    {
+        return x & ~y;
+    }
+
     template <_32_64_uint_type T>
     inline T lsb(T x)
     {
@@ -26,48 +33,46 @@ namespace dhttp::bits
     template <_32_64_uint_type T>
     make_flat inline T ltrim(T x)
     {
-        if constexpr (__HAVE_MSVC__ or __HAVE_GNUC__)
-            return __andn_u64(U64(x), U64(x) << 1);
-        return x & ~(x << 1);
+        return andnot(x, x << 1);
     }
 
     template <_32_64_uint_type T>
     make_flat inline T rtrim(T x)
     {
-        if constexpr (__HAVE_MSVC__ or __HAVE_GNUC__)
-             return __andn_u64(U64(x), U64(x) >> 1);
-        return x & ~(x >> 1);
+        return andnot(x, x >> 1);
+    }
+
+    make_flat inline u64_t ltrim_u64(u64_t x)
+    {
+        return andnot(x, x << 8);
+    }
+
+    make_flat inline u64_t rtrim_u64(u64_t x)
+    {
+        return andnot(x, x >> 8);
     }
 
     template <_32_64_uint_type T>
-    make_flat inline T tzmask(T x)
+    inline T tzmask(T x)
     {
-        if constexpr (__HAVE_MSVC__ or __HAVE_GNUC__)
-             return __andn_u64(U64(x) - 1, U64(x));
-        return ~x & (x - 1);
+        return andnot(x - 1, x);
     }
 
     template <_32_64_uint_type T>
     inline T blsmask(T x)
     {
-        if constexpr (__HAVE_MSVC__ or __HAVE_GNUC__)
-             return __blsmsk_u64(U64(x));
         return x ^ (x - 1);
     }
 
     template <_32_64_uint_type T>
     inline T blsr(T x)
     {
-        if constexpr (__HAVE_MSVC__ or __HAVE_GNUC__)
-             return __blsr_u64(U64(x));
         return x & (x - 1);
     }
 
     template <_32_64_uint_type T>
     inline T blsfill(T x)
     {
-        if constexpr (__HAVE_MSVC__ or __HAVE_GNUC__)
-             return __blsfill_u64(U64(x));
         return x | (x - 1);
     }
 
@@ -78,11 +83,11 @@ namespace dhttp::bits
     }
 
     template <_32_64_uint_type T>
-    inline T tzcnt(T x)
+    T tzcnt(T x)
     {
         if constexpr (sizeof (T) == 32)
         {
-#if defined(_tzcnt_u32) || defined(__HAVE_MSVC__)
+#if defined(_tzcnt_u32) || __HAVE_MSVC__
             return _tzcnt_u32(x);
 #elif __HAVE_GNUC__
         return __builtin_ctzl(U32(x));
