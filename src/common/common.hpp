@@ -1,11 +1,11 @@
-#ifndef DHTTP_COMMON_HPP
-#define DHTTP_COMMON_HPP
+#ifndef HTTPVO_COMMON_HPP
+#define HTTPVO_COMMON_HPP
 #include "../include/definition.hpp"
 #include "../include/constants.hpp"
 #include "../include/bits.hpp"
 #include "../include/tables.hpp"
 
-namespace dhttp::common
+namespace httpvo::common
 {
     inline constexpr u64_t _dup(u8_t v)
     {
@@ -162,4 +162,4 @@ namespace dhttp::common
         return constant::mask_http_1 == (reinterpret_cast<u64_t *>(b)[0] & 0x00ffffffffffffffULL);
     }  
 }
-#endif
+#endif // HTTPVO_COMMON_HPP

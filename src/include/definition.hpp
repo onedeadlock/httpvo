@@ -1,5 +1,5 @@
-#ifndef DHTTP_DEFINITION_H
-#define DHTTP_DEFINITION_H
+#ifndef HTTPVO_DEFINITION_H
+#define HTTPVO_DEFINITION_H
 #include <cstdint>
 #include <cstring>
 #include <array>
@@ -130,9 +130,9 @@
 #define U32P(b) reinterpret_cast<u32_t *>(b)[0]
 
 //////////////////////////////
-//////////// DHTTP ///////////
+//////////// HTTPVO ///////////
 //////////////////////////////
-namespace dhttp
+namespace httpvo
 {
     template <typename base> struct simd64;
     
@@ -151,4 +151,4 @@ namespace dhttp
      static constexpr u8_t SSE4   = 3;
      static constexpr u8_t INT64  = 4;
 }
-#endif // DHTTP_DEFINITION_HPP
+#endif // HTTPVO_DEFINITION_HPP

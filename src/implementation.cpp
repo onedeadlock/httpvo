@@ -1,9 +1,9 @@
-#ifndef DHTTP_IMPLEMENTATION_MAIN_HPP
-#define DHTTP_IMPLEMENTATION_MAIN_HPP
+#ifndef HTTPVO_IMPLEMENTATION_MAIN_HPP
+#define HTTPVO_IMPLEMENTATION_MAIN_HPP
 #include "implementation.hpp"
-//#include "scalar_impl.hpp"
+#include "scalar_impl.hpp"
 
-namespace dhttp::Implementation
+namespace httpvo::Implementation
 {   
     template <int N>
     inline bool req_header_value(void *in, const simdv<N>& v, u64_t lf, u64_t cr, u64_t crlf, bool done)

@@ -1,9 +1,9 @@
-#ifndef DHTTP_SIMD_FALLBACK_HPP
-#define DHTTP_SIMD_FALLBACK_HPP
+#ifndef HTTPVO_SIMD_FALLBACK_HPP
+#define HTTPVO_SIMD_FALLBACK_HPP
 #include "../../include/definition.hpp"
 #include "../../common/common.hpp"
 
-namespace dhttp::simd::fallback
+namespace httpvo::simd::fallback
 {
     using namespace common;
 
@@ -306,4 +306,4 @@ namespace dhttp::simd::fallback
         }
     };
 }
-#endif // DHTTP_SIMD_FALLBACK_HPP
+#endif // HTTPVO_SIMD_FALLBACK_HPP

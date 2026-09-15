@@ -1,5 +1,5 @@
-#ifndef DHTTP_BITS_HPP
-#define DHTTP_BITS_HPP
+#ifndef HTTPVO_BITS_HPP
+#define HTTPVO_BITS_HPP
 #include "definition.hpp"
 #include "constants.hpp"
 #if   __HAVE_MSVC__
@@ -8,7 +8,7 @@
 //#include <x86intrin.h>
 #endif
 
-namespace dhttp::bits
+namespace httpvo::bits
 {
 #if defined(__cplusplus) && __cplusplus >= 202002L
     template <typename T = u64_t>
@@ -111,4 +111,4 @@ namespace dhttp::bits
     }
 #undef _32_64_uint_type
 }
-#endif // DHTTP_BITS_H
+#endif // HTTPVO_BITS_H

@@ -1,8 +1,8 @@
-#ifndef DHTTP_SIMD_IMPLEMENTAION_HPP
-#define DHTTP_SIMD_IMPLEMENTAION_HPP
+#ifndef HTTPVO_SIMD_IMPLEMENTAION_HPP
+#define HTTPVO_SIMD_IMPLEMENTAION_HPP
 #include "../include/definition.hpp"
 
-namespace dhttp::simd
+namespace httpvo::simd
 {
     template <int N> alignas(N) struct simdv;
 
@@ -20,4 +20,4 @@ namespace dhttp::simd
 #         //using namespace dhttp::simd::fallback; 
      #endif
 }
-#endif // DHTTP_SIMD_IMPLEMENTAION_HPP
+#endif // HTTPVO_SIMD_IMPLEMENTAION_HPP

@@ -1,9 +1,9 @@
-#ifndef DHTTP_SIMD_WESTMERE_HPP
-#define DHTTP_SIMD_WESTMERE_HPP
+#ifndef HTTPVO_SIMD_WESTMERE_HPP
+#define HTTPVO_SIMD_WESTMERE_HPP
 #include "../../include/definition.hpp"
 #include "../../include/constants.hpp"
 
-namespace dhttp::simd::westmere
+namespace httpvo::simd::westmere
 {
     template <int N> alignas(N) struct simdv;
 
@@ -314,4 +314,4 @@ namespace dhttp::simd::westmere
         }
     };
 }
-#endif // DHTTP_SIMD_WESTMERE_HPP
+#endif // HTTPVO_SIMD_WESTMERE_HPP

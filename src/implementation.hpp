@@ -1,5 +1,5 @@
-#ifndef DHTTP_IMPLEMENTAION_HPP
-#define DHTTP_IMPLEMENTATION_HPP
+#ifndef HTTPVO_IMPLEMENTAION_HPP
+#define HTTPVO_IMPLEMENTATION_HPP
 
 #include "include/definition.hpp"
 #include "include/constants.hpp"
@@ -7,7 +7,7 @@
 #include "common/common.hpp"
 //#include "simd/implementation.hpp"
 
-namespace dhttp::Implementation
+namespace httpvo::Implementation
 {
     constexpr int COMPLETE = 0;
     constexpr int EXPECT_DATA = 1;

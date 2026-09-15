@@ -1,8 +1,8 @@
-#ifndef DHTTP_TABLES_HPP
-#define DHTTP_TABLES_HPP
+#ifndef HTTPVO_TABLES_HPP
+#define HTTPVO_TABLES_HPP
 #include "definition.hpp"
 
-namespace dhttp::tables
+namespace httpvo::tables
 {
     /* ! # \$ % & ' * + - . ^ _ ` | A-Za-z0-9 : / ? #, [ ] @ ! $ & ' ( ) * + , ; = */
     alignas(64) static constexpr uint8_t token_charset[256]{
@@ -35,4 +35,4 @@ namespace dhttp::tables
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 }
-#endif // DHTTP_TABLES_HPP
+#endif // HTTPVO_TABLES_HPP

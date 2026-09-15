@@ -1,15 +1,10 @@
-#ifndef IMPLEMENTATION_SCALAR_HPP
-#define IMPLEMENTATION_SCALAR_HPP
+#ifndef HTTPVO_IMPLEMENTATION_SCALAR_HPP
+#define HTTPVO_IMPLEMENTATION_SCALAR_HPP
 #include "implementation.hpp"
 #include <iostream>
 #include <cstdio>
 
-#define PUT(i) printf("%llx\n", static_cast<uint64_t>((i)))
-#define PUTB(i) printf("%064llb\n", static_cast<uint64_t>((i)))
-#define PUTI(i) printf("%lld\n", static_cast<int64_t>((i)))
-#define HERE(i) printf("Here at L%s\n", #i)
-
-namespace dhttp::Implementation
+namespace httpvo::Implementation
 {
     inline bool is_valid(u8_t i) { return i > 0x20 and i < 0x7f; }
 
@@ -115,4 +110,4 @@ namespace dhttp::Implementation
         return 0;
     }
 }
-#endif
+#endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP

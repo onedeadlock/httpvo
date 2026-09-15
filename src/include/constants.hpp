@@ -1,8 +1,8 @@
-#ifndef DHTTP_CONSTANTS_HPP
-#define DHTTP_CONSTANTS_HPP
+#ifndef HTTPVO_CONSTANTS_HPP
+#define HTTPVO_CONSTANTS_HPP
 #include "definition.hpp"
 
-namespace dhttp::constant
+namespace httpvo::constant
 {
     static constexpr std::size_t int_size   = sizeof (u64_t);
     static constexpr std::size_t int_size_p = (int_size / 2) - 1;
@@ -46,4 +46,4 @@ namespace dhttp::constant
         25, 39, 14, 33, 19, 30, 9,  24,
         13, 18, 8,  12, 7,  6,  5,  63};
 }
-#endif // DHTTP_CONSTANTS_HPP
+#endif // HTTPVO_CONSTANTS_HPP
