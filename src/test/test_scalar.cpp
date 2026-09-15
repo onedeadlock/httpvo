@@ -46,13 +46,13 @@ struct loadRequestLineFile : public benchmark::Fixture
 static void BM_test_1(benchmark::State& state)
 {
      http test_parse;
-     static char str[] = "GET https://g8234293087097092307957023975029375029375029375029375023975023951e1we1we1we1we1e1e1w7023952746927346927346923469238469283469283469283469283649283642983642342oogle.com/index HTTP1.1\r\n";
+     static char str[] = "GET https://g8234293087097092307957023975029375029375029375029375023975023951e1we1we1we1we1e1e1w702395274692734692734692346923846928346928346928342oogle.com/index HTTP1.1\r\n";
      std::size_t len = strlen(str);
 
      for (auto _ : state)
      {
         int res = test_parse.parse_header_line_sc(str, len, len);
-        benchmark::DoNotOptimize(res);
+        //benchmark::DoNotOptimize(res);
      }
 }
 

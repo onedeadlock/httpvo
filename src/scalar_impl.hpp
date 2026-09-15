@@ -57,7 +57,7 @@ namespace httpvo::Implementation
 
             u64_t sp    = common::_cmpeq(v, constant::c20) | common::_cmpeq(v, constant::c09);
            
-            #if 0
+
             u64_t tchar = common::_cmp_gt_and_lt<'\x20', '\x7f'>(v);
             u64_t trailing_wsp  = static_cast<u64_t>(state.has_trailing_wsp()) << 7;
             u64_t single_wsp    = bits::andnot (bits::bltrim(sp), trailing_wsp);
@@ -66,9 +66,9 @@ namespace httpvo::Implementation
 
             if (error_tchar & bits::tzmask(crlf))
                return -400;
-               #endif
+
             for (mask = (sp | cr | lf) & bits::blsmask(cr | lf); mask and j; mask &= mask - 1)
-                req[out_reader.decr()] += i + (bits::tzcnt(mask) >> 3);
+                req[j--] += i + (bits::tzcnt(mask) >> 3);
 
             state.set_trailing_ret(static_cast<bool>(cr & constant::msb_64));
             state.set_trailing_wsp(static_cast<bool>(sp & constant::msb_64));
