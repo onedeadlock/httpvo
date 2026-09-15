@@ -137,7 +137,7 @@ namespace httpvo::Implementation
 
         inline std::size_t decr(void) noexcept
         {
-            assert(__i >= __incr);
+            //assert(__i >= __incr);
             return __i -= __incr;
         }
 

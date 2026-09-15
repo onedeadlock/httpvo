@@ -1,0 +1,3 @@
+#!/bin/bash
+
+g++ -O2 -march=native -mbmi2 -fno-vectorize-tree $1 -DBENCHMARK_STATIC_DEFINE -I/usr/local/include -L/usr/local/lib -lbenchmark -lshlwapi -lpthread
