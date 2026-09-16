@@ -45,7 +45,7 @@
 #    define HAVE__AVX2__ 0
 #endif
 #ifndef HAVE__SSE2__
-#    define HAVE_SSE2__  0
+#    define HAVE__SSE2__  0
 #endif
 #ifndef HAVE__SSE4_2__
 #    define HAVE__SSE4_2__  0
@@ -67,15 +67,24 @@
 #ifndef OPTIMIZE_FOR_MOST_CASE
 #    define OPTIMIZE_FOR_MOST_CASE 1
 #endif
+
 #ifndef SUPPORT_FULL_TCHAR
 #    define SUPPORT_FULL_TCHAR 0
 #endif
+
 #ifndef STRICT_HTTP
 #    define STRICT_HTTP 1
+#    define HTTP_STRICT_DELIM 1
 #endif
+
 #ifndef HTTP_STRICT_DELIM
 #    define HTTP_STRICT_DELIM 1
 #endif
+
+#ifndef NO_VECTORIZE
+#    define NO_VECTORIZE 0
+#endif
+
 #ifndef IGNORE_LEADING_SP
 #    define IGNORE_LEADING_SP 0
 #endif
@@ -90,7 +99,7 @@
 #    define MIX_AVX512_AVX2 0
 #endif
 
-// no copy trailers policy
+// no copying of trailing bytes
 #ifndef NO_COPY_TRAILS
 #    define NO_COPY_TRAILS 0
 #endif

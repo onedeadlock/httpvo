@@ -19,6 +19,8 @@ namespace httpvo::Implementation
         std::size_t stop_size = run_size & ~(8ULL - 1);
         for (; i < stop_size; i += 8)
         {
+            if constexpr (NO_VECTORIZE)
+                break;
             if (state.has_trailing_ret()) [[unlikely]]
             {
                 if (b[i] != '\xa')

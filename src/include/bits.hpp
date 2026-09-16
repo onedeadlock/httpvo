@@ -98,7 +98,7 @@ namespace httpvo::bits
 #endif
         }
 
-#if defined(_tzcnt_u64) || defined(__HAVE_MSVC__)
+#if defined(_tzcnt_u64) || __HAVE_MSVC__
             return _tzcnt_u64(x);
 #elif __HAVE_GNUC__
         return __builtin_ctzll(x);
