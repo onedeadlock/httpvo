@@ -46,20 +46,21 @@ struct loadRequestLineFile : public benchmark::Fixture
 static void BM_test_1(benchmark::State& state)
 {
      http test_parse;
-     static char str[] = "GET https://g8234293087097092307957023975029375029375029375029375023975023951e1we1we1we1we1e1e1w702395274692734692734692346923846928346928346928342oogle.com/index HTTP1.1\r\n";
+     alignas(8) static char str[] = "GET https://g76555665ry7yhyrf755ffu6rddy64rdyyrfyutfoogle.com/index HTTP1.1\r\n";
      std::size_t len = strlen(str);
 
      for (auto _ : state)
      {
         int res = test_parse.parse_header_line_sc(str, len, len);
-        //benchmark::DoNotOptimize(res);
+        benchmark::DoNotOptimize(res);
      }
 }
 
-BENCHMARK(BM_test_1)->Repetitions(2);
+BENCHMARK(BM_test_1);
 
 int main(int argc, char **argv)
 {
+    benchmark::MaybeReenterWithoutASLR(argc, argv);
     benchmark::Initialize(&argc, argv);
     if (benchmark::ReportUnrecognizedArguments(argc, argv))
         return 1;

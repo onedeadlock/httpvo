@@ -23,14 +23,15 @@ namespace httpvo::Implementation
         }
         return yes;
     }
+
     int http::parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size)
     {
-        u8_t *b = reinterpret_cast<u8_t *>(in) + in_reader.at(), yes = true;
+        u8_t *b = reinterpret_cast<u8_t *>(in) + 0; //yes = true;
         auto& req = reqline.req_line;
 
         u64_t mask = 0;
         u64_t crlf = 0;
-        std::size_t j = out_reader.at();
+        std::size_t j = 3;//out_reader.at();
         std::size_t i = 0;
 
         std::size_t stop_size = run_size & ~(8ULL - 1);
@@ -43,11 +44,7 @@ namespace httpvo::Implementation
                 in_reader.incr_by(1);
                 return end_of_header_line(in, mask);
             }
-            u64_t v;
-            if constexpr (__HAVE_SUPPORT_FOR_UNALIGNED__)
-                v = reinterpret_cast<u64_t *>(b + i)[0];
-            else
-                __builtin_memcpy(&v, b + i, 8);
+            u64_t v = common::_load_u64(b+i);
             u64_t cr = common::_cmpeq(v, constant::c0d);
             u64_t lf = common::_cmpeq(v, constant::c0a);
             crlf = cr & (lf >> 8);
@@ -56,16 +53,18 @@ namespace httpvo::Implementation
                 return -400;
 
             u64_t sp    = common::_cmpeq(v, constant::c20) | common::_cmpeq(v, constant::c09);
-           
-
             u64_t tchar = common::_cmp_gt_and_lt<'\x20', '\x7f'>(v);
-            u64_t trailing_wsp  = static_cast<u64_t>(state.has_trailing_wsp()) << 7;
-            u64_t single_wsp    = bits::andnot (bits::bltrim(sp), trailing_wsp);
-            u64_t invalid_tchar = bits::andnot(constant::c80, tchar) ^ single_wsp;
-            u64_t error_tchar   = invalid_tchar | lf | (cr & 0x0080808080808080ULL);
 
+            u64_t trailing_wsp  = static_cast<u64_t>(state.has_trailing_wsp()) << 7;
+
+            u64_t single_wsp    = bits::andnot(bits::bltrim(sp), trailing_wsp);
+
+            u64_t invalid_tchar = bits::andnot(constant::c80, tchar) ^ single_wsp;
+#if 1
+            u64_t error_tchar   = invalid_tchar | lf | (cr & 0x0080808080808080ULL);
+#endif
             if (error_tchar & bits::tzmask(crlf))
-               return -400;
+                return -400;
 
             for (mask = (sp | cr | lf) & bits::blsmask(cr | lf); mask and j; mask &= mask - 1)
                 req[j--] += i + (bits::tzcnt(mask) >> 3);
@@ -75,16 +74,16 @@ namespace httpvo::Implementation
             if (crlf)
             {
                 in_reader.incr_by(i + bits::tzcnt(mask));
-                return end_of_header_line(in, mask);
+                return 0;//end_of_header_line(in, mask);
             }
             if (j == 0 and mask) [[unlikely]]
                 return -400;   
         }
-        return 0;
-        for (std::size_t k = i; k < run_size; k++)
+        //   return 0;
+#if 1
+        for (std::size_t k = i; k < run_size and j; k++)
         {
             u8_t c = b[k];
-
             if (c == '\xa' or c == '\xd') [[unlikely]]
             {
                 bool have_bytes = (k + 1) < run_size;
@@ -97,15 +96,20 @@ namespace httpvo::Implementation
                 req[j--] += k;
                 bool error_dup_wsp = state.has_trailing_wsp();
                 state.set_trailing_wsp(true);
-                if (error_dup_wsp or (k + 1 < run_size and common::is_whitespace(b[k + 1]))) [[unlikely]]
+                if (error_dup_wsp) [[unlikely]]
                     return -400;
+                continue;
             }
+            state.set_trailing_wsp(false);
+            if (not is_valid(c))
+                return -400;
         }
-
+        return 0;
         if (not is_valid_tchar(b + i, run_size & (8 - 1)))
             return -400;
         in_reader.incr_by(i + (run_size & (8 - 1)));
         return end_of_header_line(in, mask);
+        #endif
     }
 
     int nparse_no_rescan(void *in, std::size_t in_size, std::size_t run_size, void *out, std::size_t out_size)

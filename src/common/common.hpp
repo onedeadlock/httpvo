@@ -14,16 +14,17 @@ namespace httpvo::common
 
     inline u64_t _cmpeqz(u64_t v)
     {
+#if HAVE__ARM_NEON__ && 0
+            return vget_lane_u64(vreinterpret_u64_u8(vceqz_u8(vcreate_u8(v))), 0);
+#endif
         return bits::andnot(constant::c80, v | ((v & constant::c7f) + constant::c7f));
     }
 
-    inline u64_t _cmpeqz_(u64_t v)
+    u64_t _cmpeq(u64_t u, u64_t v)
     {
-        return ((v & constant::c7f) - constant::c01) & bits::andnot(constant::c80, v);;
-    }
-
-    inline u64_t _cmpeq(u64_t u, u64_t v)
-    {
+#if HAVE__ARM_NEON__
+            return vget_lane_u64(vreinterpret_u64_u8(vceq_u8(vcreate_u8(u), vcreate_u8(v))), 0);
+#endif
         return _cmpeqz(u ^ v);
     }
 
@@ -57,11 +58,33 @@ namespace httpvo::common
     inline u64_t _cmp_gt_and_lt(T v)
     {
         static_assert(A < 0x7f && B < 0x80);
+#if HAVE__ARM_NEON__ && 0
+        if constexpr (sizeof(T) == 8)
+        {
+            static const uint8x8_t a = vdup_n_u8(A);
+            static const uint8x8_t b = vdup_n_u8(B);
+            uint8x8_t x = vcreate_u8(v);
+            uint8x8_t o = vand_u8(vcgt_u8(x, a), vclt_u8(x, b));
+            return vget_lane_u64(vreinterpret_u64_u8(o), 0);
+        }
+#endif
         static constexpr T a = static_cast<T>(_dup(0x7f - A));
         static constexpr T b = static_cast<T>(_dup(0x7f + B));
         return (b - (v & constant::c7f)) & (a + (v & constant::c7f)) & bits::andnot(constant::c80, v);
     }
 
+    inline u64_t _load_u64(void *b)
+    {
+#if HAVE__ARM_NEON__ && 0
+        return vget_lane_u64(vld1_u64(reinterpret_cast<const u64_t *>(b)), 0);
+#elif __HAVE_SUPPORT_FOR_UNALIGNED__
+        return reinterpret_cast<u64_t *>(b)[0];
+#endif
+        u64_t v;
+        __builtin_memcpy(&v, b, 8);
+        return v;
+    }
+    
     inline u64_t ascii_letters(u64_t v)
     {
         return (constant::Z - (v & constant::AZ_const)) & (constant::A + (v & constant::AZ_const)) & bits::andnot(constant::c80, v);
