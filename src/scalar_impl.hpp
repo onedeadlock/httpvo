@@ -1,8 +1,6 @@
 #ifndef HTTPVO_IMPLEMENTATION_SCALAR_HPP
 #define HTTPVO_IMPLEMENTATION_SCALAR_HPP
 #include "implementation.hpp"
-#include <iostream>
-#include <cstdio>
 
 namespace httpvo::Implementation
 {
@@ -10,7 +8,7 @@ namespace httpvo::Implementation
 
     int http::parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size)
     {
-        u8_t *b = reinterpret_cast<u8_t *>(in) + in_reader.at(), yes = true;
+        u8_t *b = reinterpret_cast<u8_t *>(in) + in_reader.at();
         auto& req = reqline.req_line;
 
         u64_t mask = 0;
@@ -33,8 +31,8 @@ namespace httpvo::Implementation
             u64_t cr = common::_cmpeq(v, constant::c0d);
             u64_t lf = common::_cmpeq(v, constant::c0a);
             crlf = cr & (lf >> 8); 
-            if constexpr (HTTP_STRICT_DELIM)
-                cr |= lf;
+            if constexpr (not HTTP_STRICT_DELIM)
+                crlf |= lf;
 
             if ((crlf & 0x80) and this->at_start_line) [[unlikely]]
                 return -400;
@@ -86,7 +84,7 @@ namespace httpvo::Implementation
             if (not is_valid(c))
                 return -400;
         }
-        // TODO set out reader
+        // TODO set out_reader
         in_reader.incr_by(i + (run_size & (8 - 1)));
         return end_of_header_line(in, mask);
     }
