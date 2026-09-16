@@ -164,7 +164,7 @@ namespace httpvo::common
     inline bool is_valid_name_token_loop(u8_t *b, std::size_t len)
     {
         auto &x = tables::tchar_map;
-        int i = 0;
+        std::size_t i = 0;
         while (i < len and x[b[i++]]) [[likely]] pass();
         return i == len;
     }

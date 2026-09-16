@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "msys",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/msys64/usr/local/include",
+                "C:/msys64/usr/include"
+            ],
+            "compilerPath": "C:/msys64/ucrt64/bin/g++.exe",
+            "cppStandard": "${default}",
+            "cStandard": "${default}",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

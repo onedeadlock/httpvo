@@ -2,18 +2,18 @@
 #include "../scalar_impl.hpp"
 
 using namespace httpvo::Implementation;
+alignas(8) static char str[] = "GET https://google.com/index HTTP1.1\r\n";
 
-int main(void)
-{
-    http request;
-
-    return 0;
-}
-
-static void BM_test_1(benchmark::State& state)
+void correct_request_line_index(void)
 {
      http test_parse;
-     alignas(8) static char str[] = "GET https://google.com/index HTTP1.1\r\n";
+     std::size_t len = strlen(str);
+     (void)len;
+}
+
+static void BM_speed_test_1(benchmark::State& state)
+{
+     http test_parse;
      std::size_t len = strlen(str);
 
      for (auto _ : state)
@@ -23,7 +23,7 @@ static void BM_test_1(benchmark::State& state)
      }
 }
 
-BENCHMARK(BM_test_1);
+BENCHMARK(BM_speed_test_1);
 
 int main(int argc, char **argv)
 {

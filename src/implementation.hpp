@@ -1,4 +1,4 @@
-#ifndef HTTPVO_IMPLEMENTAION_HPP
+#ifndef HTTPVO_IMPLEMENTATION_HPP
 #define HTTPVO_IMPLEMENTATION_HPP
 
 #include "include/definition.hpp"
