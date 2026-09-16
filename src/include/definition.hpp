@@ -36,7 +36,7 @@
 #        define HAVE__SSE4_2__ 1
 #    endif
 #    include <immintrin.h>
-#elif defined(_ARM_NEON)
+#elif defined(__ARM_NEON)
 #    define HAVE__ARM_NEON__ 1
 #    include <arm_neon.h>
 #endif
@@ -72,6 +72,9 @@
 #endif
 #ifndef STRICT_HTTP
 #    define STRICT_HTTP 1
+#endif
+#ifndef HTTP_STRICT_DELIM
+#    define HTTP_STRICT_DELIM 1
 #endif
 #ifndef IGNORE_LEADING_SP
 #    define IGNORE_LEADING_SP 0
