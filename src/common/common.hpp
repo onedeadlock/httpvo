@@ -47,9 +47,8 @@ namespace httpvo::common
 
     inline u64_t _cmpeq(u64_t u, u64_t v)
     {
-        // The scalar approach ties with ARM's 64bits intrinsic perf in a 64bit machine. However, in a 32bit machine, the scalar emits twice the instructions (no native 64bits reqister), and very slow when called repeatedly
         #if HAVE__ARM_NEON__
-        return vget_lane_u64(vreinterpret_u64(vceq_u8(vcreate_u8(u), vcreate_u8(v))), 0);
+            return vget_lane_u64(vreinterpret_u64(vceq_u8(vcreate_u8(u), vcreate_u8(v))), 0);
         #endif
         return _cmpeqz(u ^ v);
     }
@@ -164,6 +163,14 @@ namespace httpvo::common
         return i == 8;
     }
 
+    inline bool is_valid_name_token_loop(u8_t *b, std::size_t len)
+    {
+        static constexpr auto &x = tables::tchar_map;
+        std::size_t i = 0;
+        while (i < len and x[b[i++]]) [[likely]] pass();
+        return i == len;
+    }
+    
     template <int ALIGNED>
     make_flat inline bool is_valid_name_token(void *b)
     {
@@ -177,14 +184,6 @@ namespace httpvo::common
             return not out or is_valid_name_token_loop(reinterpret_cast<u8_t *>(b), 8 - bits::tzcnt(out) / 8);
         }
         return is_valid_name_token_(reinterpret_cast<u8_t *>(b));
-    }
-
-    inline bool is_valid_name_token_loop(u8_t *b, std::size_t len)
-    {
-        static constexpr auto &x = tables::tchar_map;
-        std::size_t i = 0;
-        while (i < len and x[b[i++]]) [[likely]] pass();
-        return i == len;
     }
 
     make_flat inline bool is_valid_name(u8_t *b, std::size_t& len)

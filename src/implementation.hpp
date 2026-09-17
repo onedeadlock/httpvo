@@ -21,37 +21,37 @@ namespace httpvo::Implementation
     struct req
     {
         static_assert(std::is_integral_v<T> and (sizeof(T) < sizeof(u64_t)) and N > 0);
-        static constexpr T __size = N;
-        T __used = 0;
+        static constexpr T _size = N;
+        T _used = 0;
 
-        struct __pair
+        struct _pair
         {
             T len, pos;
         };
 
         struct {
-            __pair name, value;
+            _pair name, value;
         } pair [N];
 
         constexpr u64_t size(void) noexcept
         {
-            return __size;
+            return _size;
         }
 
         u64_t used(void) const noexcept
         {
-            return __used;
+            return _used;
         }
 
         u64_t set_used(T i) noexcept
         {
-            assert( i < __size );
-            return __used = i;
+            assert( i < _size );
+            return _used = i;
         }
 
         auto &get(T i) const noexcept
         {
-            assert( i < __size );
+            assert( i < _size );
             return pair[i];
         }
 
@@ -68,77 +68,77 @@ namespace httpvo::Implementation
             assert (incr < std::numeric_limits<std::size_t>::max());
             assert (i    < std::numeric_limits<std::size_t>::max());
 
-            __i    = i;
-            __incr = incr;
-            __max  = max;
+            _i    = i;
+            _incr = incr;
+            _max  = max;
         }
 
 
         int set(std::size_t max, std::size_t incr=1, std::size_t i=0) noexcept
         {
-             if (i and (__i > max or incr > max))
+             if (i and (_i > max or incr > max))
                 return -1;
-            __incr = incr;
-            __max  = max;
-            __i    = i;
+            _incr = incr;
+            _max  = max;
+            _i    = i;
             return 0;
         }
 
         inline int set_incr(std::size_t incr) noexcept
         {
-            if (incr > __max)
+            if (incr > _max)
                 return -1;
-            __incr = incr;
+            _incr = incr;
             return 0;
         }
 
         inline std::size_t get_incr(void) const noexcept
         {
-            return __incr;
+            return _incr;
         }
 
         std::size_t at(void) const noexcept
         {
-            return __i;
+            return _i;
         }
 
         std::size_t size(void) const noexcept
         {
-            return __i;
+            return _i;
         }
 
         std::size_t capacity(void) const noexcept
         {
-            return __max;
+            return _max;
         }
         
         std::size_t iszero(void) const noexcept
         {
-            return __i == 0;
+            return _i == 0;
         }
 
         inline std::size_t incr_by(std::size_t incr) noexcept
         {
-            assert(__i <= (__max - incr));
-            return __i += incr;
+            assert(_i <= (_max - incr));
+            return _i += incr;
         }
 
         inline std::size_t decr_by(std::size_t decr) noexcept
         {
-            assert(__i >= decr);
-            return __i -= decr;
+            assert(_i >= decr);
+            return _i -= decr;
         }
 
         inline std::size_t incr(void) noexcept
         {
-            assert(__i <= (__max - __incr));
-            return __i += __incr;
+            assert(_i <= (_max - _incr));
+            return _i += _incr;
         }
 
         inline std::size_t decr(void) noexcept
         {
-            assert(__i >= __incr);
-            return __i -= __incr;
+            assert(_i >= _incr);
+            return _i -= _incr;
         }
 
         inline std::size_t operator++(void)
@@ -152,9 +152,9 @@ namespace httpvo::Implementation
         }
 
         private:
-        std::size_t __i;
-        std::size_t __incr;
-        std::size_t __max;
+        std::size_t _i;
+        std::size_t _incr;
+        std::size_t _max;
     };
 
     struct alignas(1) State
@@ -177,9 +177,9 @@ namespace httpvo::Implementation
 
     struct ReqLine
     {
-        static constexpr u8_t m_0_1_2 = 0x000102;
-        static constexpr u8_t m_2_3_0 = 0x020300;
-        static constexpr u8_t m_2_1_0 = 0x020100;
+        static constexpr u8_t m_0_1_2 = 0b000110U; // 0, 1, 2
+        static constexpr u8_t m_2_3_0 = 0b101100U; // 2, 3, 0
+        static constexpr u8_t m_2_1_0 = 0b100100U; // 2, 1, 0
 
         /* request line is splitted and saved in the manner below:
             [N]   request | response
@@ -191,24 +191,24 @@ namespace httpvo::Implementation
         */
    
         std::size_t req[4];
-        u8_t __sm, __im, __st, __end, __sp;
-        i8_t __i; u16_t:16;
+        u8_t _sm, _im, _st, _end, _sp;
+        i8_t _i; u16_t:16;
    
         u8_t type(void)
         {
-            return __sm;
+            return _sm;
         }
 
         inline void request(void)
         {
-            __sm = __im = m_0_1_2;
-            __st = 0, __end = 3, __i = 1, __sp = 1;
+            _sm = _im = m_0_1_2;
+            _st = 0, _end = 3, _i = 1, _sp = 1;
         }
 
         inline void response(void)
         {
-            __sm = m_2_3_0, __im = m_2_1_0;
-            __st = 3, __end = 0, __i = -1, __sp = 0;
+            _sm = m_2_3_0, _im = m_2_1_0;
+            _st = 3, _end = 0, _i = -1, _sp = 0;
         }
 
         inline void reset(void)
@@ -219,54 +219,54 @@ namespace httpvo::Implementation
 
         inline std::size_t& next(void)
         {
-            return req[__st += __i];
+            return req[_st += _i];
         }
 
         inline std::size_t& post(void)
         {
-            const u8_t x = __st;
-            __st += __i;
+            const u8_t x = _st;
+            _st += _i;
             return req[x];
         }
 
         inline u8_t at(void) const
         {
-            return __st;
+            return _st;
         }
 
         inline bool complete(void) const
         {
-            return __st == __end;
+            return _st == _end;
         }
 
         inline std::size_t version_start(void) const 
         {
-            return req[__im & 0xf];// + __sp; // +trailing whitespace for request/none for response
+            return req[_im & 0xf];// + _sp; // +trailing whitespace for request/none for response
         }
 
         inline std::size_t method_size(void) const
         {
-            return req[3] - req[(__sm >> 4) & 0x0];
+            return req[3] - req[(_sm >> 4) & 0x0];
         }
 
         inline std::size_t uri_size(void) const
         {
-            return req[2] - req[(__sm >> 2) & 0xf];
+            return req[2] - req[(_sm >> 2) & 0xf];
         }
         
         inline std::size_t version_size(void) const 
         {
-            return req[1] - req[(__sm >> 0) & 0xf];
+            return req[1] - req[(_sm >> 0) & 0xf];
         }
 
         inline std::size_t status_size(void) const 
         {
-            return req[2] - req[(__sm >> 2) & 0xf];
+            return req[2] - req[(_sm >> 2) & 0xf];
         }
 
         inline std::size_t msg_size(void) const
         {
-            return req[3] - req[(__sm >> 4) & 0x0];
+            return req[3] - req[(_sm >> 4) & 0x0];
         }
     };
 

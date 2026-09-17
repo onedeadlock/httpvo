@@ -9,7 +9,7 @@ namespace httpvo::Implementation
     int http::parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size)
     {
         u8_t *b = reinterpret_cast<u8_t *>(in) + 0;//in_reader.at();
-        auto& req = reqline.req_line;
+        auto& req = reqline.req;
 
         u64_t mask = 0;
         u64_t crlf = 0;
