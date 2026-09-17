@@ -177,71 +177,123 @@ namespace httpvo::Implementation
 
     struct ReqLine
     {
-        using inttype = u64_t;
-        /*
+        static constexpr u8_t reqsize_mask = 0x000102;
+        static constexpr u8_t ressize_mask = 0x020300;
+        static constexpr u8_t reqi_mask    = 0x000102;
+        static constexpr u8_t resi_mask    = 0x020100;
+
+        /* request line is splitted and saved in the manner below:
             [N]   request | response
             ______________|________
-            [3]  NULL     | NULL
-            [2]  method   | version
-            [1]  uri      | status
-            [0]  version  | msg
+            [0]  0        |    0
+            [1]  version  | version
+            [2]  uri      | status
+            [3]  method   | message (optional)
         */
-        u64_t req_line[4];
-    };
+        std::size_t req[4];
+        u8_t __smask = reqsize_mask, __imask = reqi_mask;
+        u8_t __st = 0, __end = 3; i8_t __i = 1; i8_t:16;
 
-    struct Reqtype
-    {
-        using req_index = const int (&)[];
-        enum type : int {
-            request  = 0,
-            response = 1,
-        };
+        u8_t type(void)
+        {
+            return __smask;
+        }
+        inline void request(void)
+        {
+            __smask = reqsize_mask, __imask = reqi_mask;
+             __st = 0, __end = 3, __i = 1;
+        }
 
-        static constexpr int index[2][3] = {
-            ////////////////////////////////////////////////////
-            //// REQUEST {req_method, req_uri, req_version} ////
-            ////////////////////////////////////////////////////
-            {0, 1, 2},
-            ////////////////////////////////////////////////////
-            //// RESPONSE {req_version, req_stat, req_msg} /////
-            ////////////////////////////////////////////////////
-            {2, 1, 0},
-        };
+        inline void response(void)
+        {
+            __smask = ressize_mask, __imask = reqi_mask;
+            __st = 3, __end = 0, __i = -1;
+        }
+
+        inline void reset(void)
+        {
+            req[1] = req[2] = req[3] = 0;
+            request();
+        }
+
+        inline std::size_t& next(void)
+        {
+            return req[__st += __i];
+        }
+
+        inline std::size_t& post(void)
+        {
+            const u8_t x = __st;
+            __st += __i;
+            return req[x];
+        }
+
+        inline u8_t at(void) const
+        {
+            return __st;
+        }
+
+        inline bool complete(void) const
+        {
+            return __st == __end;
+        }
+
+        // get uri http
+        // 
+        inline std::size_t version_start(void) const 
+        {
+            return req[__imask & 0xf];
+        }
+
+        inline std::size_t method_size(void) const
+        {
+            return req[3] - req[(__smask >> 4) & 0x0];
+        }
+
+        inline std::size_t uri_size(void) const
+        {
+            return req[2] - req[(__smask >> 2) & 0xf];
+        }
+        
+        inline std::size_t version_size(void) const 
+        {
+            return req[1] - req[(__smask >> 0) & 0xf];
+        }
+
+        inline std::size_t status_size(void) const 
+        {
+            return req[2] - req[(__smask >> 2) & 0xf];
+        }
+
+        inline std::size_t msg_size(void) const
+        {
+            return req[3] - req[(__smask >> 4) & 0x0];
+        }
     };
 
     class http
     {
     public:
-        http(void) : at_start_line{true} {}
+        http(void) : reqline(0), at_start_line{true} {}
 
         void reset(std::size_t run_size=0, std::size_t incr=0, std::size_t out_size=0)
         {
-            req_type  = Reqtype::type::request; out_reader = {out_size, 1, 3};
-            in_reader = {run_size, incr}; version = -1; n_bytes_to_complete = 0;
-            state     = {0}; at_start_line = true;
-            reqline.req_line[2] = reqline.req_line[1] = reqline.req_line[0] = 0;
-        }
-
-        int type(void)
-        {
-            return static_cast<int>(req_type);
+            out_reader = {out_size, 1, 3}; in_reader = {run_size, incr}; version = -1;
+            n_bytes_to_complete = 0; state = {0}; at_start_line = true;
+            reqline.reset();
         }
 
         int parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size);
     private:
         // header line (version, method, version, status, message)
-        ReqLine reqline {0};
+        ReqLine reqline;
         // internal in & out buffer counter
         Reader in_reader {0, 64}, out_reader {0, 1, 3};
-        // request type (request or response)
-        Reqtype::type req_type = Reqtype::type::request;
-        // http minor version (the major is tested to be 1)
+        // minor version
         int  version {-1};
         // number of expected eop (end of parse) bytes (crlfcrlf)
         int  n_bytes_to_complete {0};
-        // state
         State state {0};
-        // true after reset
         bool at_start_line;
 
         template <typename T, T out_size, int N>
@@ -268,18 +320,11 @@ namespace httpvo::Implementation
             return common::version_is_http_1(b) and set_minor_version(reinterpret_cast<u8_t *>(b)[7]);
         }
 
-        inline u16_t req_size(ReqLine::inttype (&req)[], int i)
-        {
-            return this->req_type is Reqtype::type::request ?  req[i - 0] - (req[i + 1])
-                                                            : (req[i - 1] - (req[i - 0]) - 1); // -1 for the sp seperator
-        }
-
         inline bool set_version_tag(void *in)
         {
             static constexpr u8_t req_version_required_size = 8; // len(HTTP/1.x)
-            auto i = Reqtype::index[req_type][0];
-            bool is_correct_size = req_size(reqline.req_line, i) == req_version_required_size;
-            return is_correct_size and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.req_line[i + 1]);
+            bool is_correct_size = reqline.version_size() == req_version_required_size;
+            return is_correct_size and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.version_start());
         }
 
         inline int end_of_header_line(void *in, auto error)

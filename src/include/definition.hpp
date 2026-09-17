@@ -69,7 +69,7 @@
 #endif
 
 #ifndef SUPPORT_FULL_TCHAR
-#    define SUPPORT_FULL_TCHAR 0
+#    define SUPPORT_FULL_TCHAR 1
 #endif
 
 #ifndef STRICT_HTTP
@@ -149,6 +149,7 @@ namespace httpvo
     template <typename base> struct simd64;
     
     using u8_t  = std::uint8_t;
+    using i8_t  = std::int8_t;
     using u16_t = std::uint16_t;
     using u32_t = std::uint32_t;
     using u64_t = std::uint64_t;

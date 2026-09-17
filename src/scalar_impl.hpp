@@ -8,7 +8,7 @@ namespace httpvo::Implementation
 
     int http::parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size)
     {
-        u8_t *b = reinterpret_cast<u8_t *>(in) + in_reader.at();
+        u8_t *b = reinterpret_cast<u8_t *>(in) + 0;//in_reader.at();
         auto& req = reqline.req_line;
 
         u64_t mask = 0;
@@ -47,7 +47,8 @@ namespace httpvo::Implementation
             u64_t error_tchar   = invalid_tchar | lf | (cr & 0x0080808080808080ULL);
 
             if (error_tchar & bits::tzmask(crlf))
-                return -400;
+                   return -400;
+
             u64_t cr_lf_msk = cr | lf;
             for (mask = (sp | cr_lf_msk) & bits::blsmask(cr_lf_msk); mask and j; mask &= mask - 1)
                 req[j--] += i + (bits::tzcnt(mask) >> 3);
@@ -56,7 +57,7 @@ namespace httpvo::Implementation
             state.set_trailing_wsp(static_cast<bool>(sp & constant::msb_64));
             if (crlf)
             {
-                in_reader.incr_by(i + bits::tzcnt(mask));
+                in_reader.incr_by(i + bits::tzcnt(mask)); return 0;
                 return end_of_header_line(in, mask);
             }
             if (j == 0 and mask) [[unlikely]]
@@ -86,6 +87,7 @@ namespace httpvo::Implementation
             if (not is_valid(c))
                 return -400;
         }
+
         // TODO set out_reader
         in_reader.incr_by(i + (run_size & (8 - 1)));
         return end_of_header_line(in, mask);
