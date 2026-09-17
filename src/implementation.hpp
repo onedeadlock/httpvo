@@ -239,7 +239,7 @@ namespace httpvo::Implementation
 
         inline std::size_t start_of_version(void) const 
         {
-            return req[_sm & 0b11] + _sp; // +1 for the whitespace (0 for response)
+            return req[_sm & 0b11] + _sp; // +1 for sp (request:version)
         }
 
         inline std::size_t version_size(void) const 
@@ -247,24 +247,24 @@ namespace httpvo::Implementation
             return req[0] - start_of_version();
         }
 
-        inline std::size_t status_uri_start(void) const
+        inline std::size_t start_of_status_uri(void) const
         {
-            return req[(_sm >> 2) & 0b11] + 1; // +1 for the whitespace
+            return req[(_sm >> 2) & 0b11] + 1; // +1 for sp
         }
 
         inline std::size_t status_uri_size(void) const 
         {
-            return req[1] - status_uri_start();
+            return req[1] - start_of_status_uri();
         }
 
-        inline std::size_t method_msg_start(void) const 
+        inline std::size_t start_of_method_msg(void) const 
         {
-            return req[(_sm >> 4) & 0b11] + !_sp; // +1 for the trailing whitespace (0 in request)
+            return req[(_sm >> 4) & 0b11] + !_sp; // +1 for sp (msg)
         }
         
         inline std::size_t method_or_msg_size(void) const
         {
-            return req[2] - method_msg_start();
+            return req[2] - start_of_method_msg();
         }
     };
 
