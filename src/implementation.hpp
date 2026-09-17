@@ -177,9 +177,8 @@ namespace httpvo::Implementation
 
     struct ReqLine
     {
-        static constexpr u8_t m_0_1_2 = 0b000110U; // 0, 1, 2
-        static constexpr u8_t m_2_3_0 = 0b101100U; // 2, 3, 0
-        static constexpr u8_t m_2_1_0 = 0b100100U; // 2, 1, 0
+        static constexpr u8_t m_3_2_1 = 0b111001U;
+        static constexpr u8_t m_1_0_3 = 0b010011U;
 
         /* request line is splitted and saved in the manner below:
             [N]   request | response
@@ -191,8 +190,8 @@ namespace httpvo::Implementation
         */
    
         std::size_t req[4];
-        u8_t _sm, _im, _st, _end, _sp;
-        i8_t _i; u16_t:16;
+        i8_t _sm, _st, _end, _i, _sp;
+        i8_t:8,:8,:8;
    
         u8_t type(void)
         {
@@ -201,14 +200,14 @@ namespace httpvo::Implementation
 
         inline void request(void)
         {
-            _sm = _im = m_0_1_2;
-            _st = 0, _end = 3, _i = 1, _sp = 1;
+            _sm = m_3_2_1;
+            _st = 2, _end = _i = -1, _sp = 1;
         }
 
         inline void response(void)
         {
-            _sm = m_2_3_0, _im = m_2_1_0;
-            _st = 3, _end = 0, _i = -1, _sp = 0;
+            _sm = m_1_0_3;
+            _st = 0, _end = 3, _i = 1, _sp = 0;
         }
 
         inline void reset(void)
@@ -241,32 +240,32 @@ namespace httpvo::Implementation
 
         inline std::size_t version_start(void) const 
         {
-            return req[_im & 0xf];// + _sp; // +trailing whitespace for request/none for response
+            return req[_sm & 0b11];// + _sp; // +trailing whitespace for request/none for response
         }
 
         inline std::size_t method_size(void) const
         {
-            return req[3] - req[(_sm >> 4) & 0x0];
+            return req[2] - req[(_sm >> 4) & 0b11];
         }
 
         inline std::size_t uri_size(void) const
         {
-            return req[2] - req[(_sm >> 2) & 0xf];
+            return req[1] - req[(_sm >> 2) & 0b11];
         }
         
         inline std::size_t version_size(void) const 
         {
-            return req[1] - req[(_sm >> 0) & 0xf];
+            return req[0] - req[(_sm >> 0) & 0b11];
         }
 
         inline std::size_t status_size(void) const 
         {
-            return req[2] - req[(_sm >> 2) & 0xf];
+            return req[1] - req[(_sm >> 2) & 0b11];
         }
 
         inline std::size_t msg_size(void) const
         {
-            return req[3] - req[(_sm >> 4) & 0x0];
+            return req[2] - req[(_sm >> 4) & 0b11];
         }
     };
 
