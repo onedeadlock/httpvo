@@ -189,31 +189,30 @@ namespace httpvo::Implementation
             [3]  method   | message (optional)
         */
    
-        std::size_t req[4];
+        std::size_t req[4]{0};
         i8_t _sm, _st, _end, _i, _sp;
-        i8_t:8,:8,:8;
    
         u8_t type(void)
         {
             return _sm;
         }
 
+        inline void reset(void)
+        {
+            req[1] = req[2] = req[3] = 0;
+            _sm = _st = _end = _i = _sp = 0;
+        }
+
         inline void request(void)
         {
-            _sm = m_3_2_1;
-            _st = 2, _end = _i = -1, _sp = 1;
+            req[1] = req[2] = req[3] = 0;
+            _sm = m_3_2_1, _st = 2, _end = _i = -1, _sp = 1;
         }
 
         inline void response(void)
         {
-            _sm = m_1_0_3;
-            _st = 0, _end = 3, _i = 1, _sp = 0;
-        }
-
-        inline void reset(void)
-        {
             req[1] = req[2] = req[3] = 0;
-            request();
+            _sm = m_1_0_3, _st = 0, _end = 3, _i = 1, _sp = 0;
         }
 
         inline std::size_t& next(void)
@@ -238,34 +237,34 @@ namespace httpvo::Implementation
             return _st == _end;
         }
 
-        inline std::size_t version_start(void) const 
+        inline std::size_t start_of_version(void) const 
         {
-            return req[_sm & 0b11];// + _sp; // +trailing whitespace for request/none for response
+            return req[_sm & 0b11] + _sp; // +1 for the whitespace (0 for response)
         }
 
-        inline std::size_t method_size(void) const
-        {
-            return req[2] - req[(_sm >> 4) & 0b11];
-        }
-
-        inline std::size_t uri_size(void) const
-        {
-            return req[1] - req[(_sm >> 2) & 0b11];
-        }
-        
         inline std::size_t version_size(void) const 
         {
-            return req[0] - req[(_sm >> 0) & 0b11];
+            return req[0] - start_of_version();
         }
 
-        inline std::size_t status_size(void) const 
+        inline std::size_t status_uri_start(void) const
         {
-            return req[1] - req[(_sm >> 2) & 0b11];
+            return req[(_sm >> 2) & 0b11] + 1; // +1 for the whitespace
         }
 
-        inline std::size_t msg_size(void) const
+        inline std::size_t status_uri_size(void) const 
         {
-            return req[2] - req[(_sm >> 4) & 0b11];
+            return req[1] - status_uri_start();
+        }
+
+        inline std::size_t method_msg_start(void) const 
+        {
+            return req[(_sm >> 4) & 0b11] + !_sp; // +1 for the trailing whitespace (0 in request)
+        }
+        
+        inline std::size_t method_or_msg_size(void) const
+        {
+            return req[2] - method_msg_start();
         }
     };
 
@@ -322,7 +321,7 @@ namespace httpvo::Implementation
         {
             static constexpr u8_t req_version_required_size = 8; // len(HTTP/1.x)
             bool is_correct_size = reqline.version_size() == req_version_required_size;
-            return is_correct_size and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.version_start());
+            return is_correct_size and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.start_of_version());
         }
 
         inline int end_of_header_line(void *in, auto error)
