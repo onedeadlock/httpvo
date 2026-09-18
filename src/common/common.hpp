@@ -12,6 +12,19 @@ namespace httpvo::common
         return U64(v) * constant::c01;
     }
 
+
+    inline u64_t _load_u32(void *b)
+    {
+        #if __HAVE_SUPPORT_FOR_UNALIGNED__
+        return reinterpret_cast<u32_t *>(b)[0];
+        #endif
+        if (std::uintptr_t(b) & (4 - 1))
+            return reinterpret_cast<u32_t *>(b)[0];
+        u32_t v;
+        __builtin_memcpy(&v, b, 4);
+        return v;
+    }
+
     inline u64_t _load_u64(void *b)
     {
         #if HAVE__ARM_NEON__
@@ -151,19 +164,24 @@ namespace httpvo::common
         return i == 8;
     }
 
+    template <int ALIGNED>
     make_flat inline bool is_valid_name_token(void *b)
     {
-        if constexpr (OPTIMIZE_FOR_MOST_CASE)
+        // validate 8 bytes against the allowed token characters in header names
+        if constexpr (OPTIMIZE_FOR_MOST_CASE and not NO_VECTORIZE)
         {
-            // Most tokens in  header names are usually a-z, A-Z, 0-9 or -
-            return ascii_fast_tchar(reinterpret_cast<u64_t *>(b)[0]) or is_valid_name_token_(reinterpret_cast<u8_t *>(b));
+            // Most tokens are a-z, A-Z, 0-9 or -
+            u64_t v;
+            if constexpr (ALIGNED) v = reinterpret_cast<u64_t *>(b)[0]; else v = common::_load_u64(b);
+            u64_t out = ~ascii_fast_tchar(v) & constant::c80; // some other char, but may be valid
+            return not out or is_valid_name_token_loop(reinterpret_cast<u8_t *>(b), 8 - bits::tzcnt(out) / 8);
         }
         return is_valid_name_token_(reinterpret_cast<u8_t *>(b));
     }
 
     inline bool is_valid_name_token_loop(u8_t *b, std::size_t len)
     {
-        auto &x = tables::tchar_map;
+        static constexpr auto &x = tables::tchar_map;
         std::size_t i = 0;
         while (i < len and x[b[i++]]) [[likely]] pass();
         return i == len;
@@ -174,7 +192,7 @@ namespace httpvo::common
         if constexpr (not STRICT_HTTP or IGNORE_LEADING_SP)
             len -= is_whitespace(b[len - 1]);
         const u8_t *end = b + (len & ~(constant::int_size - 1));
-        for (; b != end and is_valid_name_token(b); b += 8) [[likely]] pass();
+        for (; b != end and is_valid_name_token<0>(b); b += 8) [[likely]] pass();
         const u64_t r = len % constant::int_size;
         if (b != end or not r)
             return b == end;

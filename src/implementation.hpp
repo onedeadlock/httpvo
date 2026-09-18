@@ -177,10 +177,9 @@ namespace httpvo::Implementation
 
     struct ReqLine
     {
-        static constexpr u8_t reqsize_mask = 0x000102;
-        static constexpr u8_t ressize_mask = 0x020300;
-        static constexpr u8_t reqi_mask    = 0x000102;
-        static constexpr u8_t resi_mask    = 0x020100;
+        static constexpr u8_t m_0_1_2 = 0x000102;
+        static constexpr u8_t m_2_3_0 = 0x020300;
+        static constexpr u8_t m_2_1_0 = 0x020100;
 
         /* request line is splitted and saved in the manner below:
             [N]   request | response
@@ -190,24 +189,26 @@ namespace httpvo::Implementation
             [2]  uri      | status
             [3]  method   | message (optional)
         */
+   
         std::size_t req[4];
-        u8_t __smask = reqsize_mask, __imask = reqi_mask;
-        u8_t __st = 0, __end = 3; i8_t __i = 1; i8_t:16;
-
+        u8_t __sm, __im, __st, __end, __sp;
+        i8_t __i; u16_t:16;
+   
         u8_t type(void)
         {
-            return __smask;
+            return __sm;
         }
+
         inline void request(void)
         {
-            __smask = reqsize_mask, __imask = reqi_mask;
-             __st = 0, __end = 3, __i = 1;
+            __sm = __im = m_0_1_2;
+            __st = 0, __end = 3, __i = 1, __sp = 1;
         }
 
         inline void response(void)
         {
-            __smask = ressize_mask, __imask = reqi_mask;
-            __st = 3, __end = 0, __i = -1;
+            __sm = m_2_3_0, __im = m_2_1_0;
+            __st = 3, __end = 0, __i = -1, __sp = 0;
         }
 
         inline void reset(void)
@@ -238,43 +239,41 @@ namespace httpvo::Implementation
             return __st == __end;
         }
 
-        // get uri http
-        // 
         inline std::size_t version_start(void) const 
         {
-            return req[__imask & 0xf];
+            return req[__im & 0xf];// + __sp; // +trailing whitespace for request/none for response
         }
 
         inline std::size_t method_size(void) const
         {
-            return req[3] - req[(__smask >> 4) & 0x0];
+            return req[3] - req[(__sm >> 4) & 0x0];
         }
 
         inline std::size_t uri_size(void) const
         {
-            return req[2] - req[(__smask >> 2) & 0xf];
+            return req[2] - req[(__sm >> 2) & 0xf];
         }
         
         inline std::size_t version_size(void) const 
         {
-            return req[1] - req[(__smask >> 0) & 0xf];
+            return req[1] - req[(__sm >> 0) & 0xf];
         }
 
         inline std::size_t status_size(void) const 
         {
-            return req[2] - req[(__smask >> 2) & 0xf];
+            return req[2] - req[(__sm >> 2) & 0xf];
         }
 
         inline std::size_t msg_size(void) const
         {
-            return req[3] - req[(__smask >> 4) & 0x0];
+            return req[3] - req[(__sm >> 4) & 0x0];
         }
     };
 
     class http
     {
     public:
-        http(void) : reqline(0), at_start_line{true} {}
+        http(void) : reqline{0}, at_start_line{true} {}
 
         void reset(std::size_t run_size=0, std::size_t incr=0, std::size_t out_size=0)
         {
@@ -288,12 +287,12 @@ namespace httpvo::Implementation
         // header line (version, method, version, status, message)
         ReqLine reqline;
         // internal in & out buffer counter
-        Reader in_reader {0, 64}, out_reader {0, 1, 3};
+        Reader in_reader{0, 64}, out_reader{0, 1, 3};
         // minor version
-        int  version {-1};
+        int  version{-1};
         // number of expected eop (end of parse) bytes (crlfcrlf)
-        int  n_bytes_to_complete {0};
-        State state {0};
+        int  n_bytes_to_complete{0};
+        State state{0};
         bool at_start_line;
 
         template <typename T, T out_size, int N>
