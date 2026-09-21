@@ -190,56 +190,56 @@ namespace httpvo::Implementation
         */
    
         std::size_t req[4]{0};
-        i8_t _sm, _st, _end, _i, _sp;
+        i8_t sm, st, end, i, sp;
    
         u8_t type(void)
         {
-            return _sm;
+            return sm;
         }
 
         inline void reset(void)
         {
             req[1] = req[2] = req[3] = 0;
-            _sm = _st = _end = _i = _sp = 0;
+            sm = st = end = i = sp = 0;
         }
 
         inline void request(void)
         {
             req[1] = req[2] = req[3] = 0;
-            _sm = m_3_2_1, _st = 2, _end = _i = -1, _sp = 1;
+            sm = m_3_2_1, st = 2, end = i = -1, sp = 1;
         }
 
         inline void response(void)
         {
             req[1] = req[2] = req[3] = 0;
-            _sm = m_1_0_3, _st = 0, _end = 3, _i = 1, _sp = 0;
+            sm = m_1_0_3, st = 0, end = 3, i = 1, sp = 0;
         }
 
         inline std::size_t& next(void)
         {
-            return req[_st += _i];
+            return req[st += i];
         }
 
         inline std::size_t& post(void)
         {
-            const u8_t x = _st;
-            _st += _i;
+            const u8_t x = st;
+            st += i;
             return req[x];
         }
 
         inline u8_t at(void) const
         {
-            return _st;
+            return st;
         }
 
         inline bool complete(void) const
         {
-            return _st == _end;
+            return st == end;
         }
 
         inline std::size_t start_of_version(void) const 
         {
-            return req[_sm & 0b11] + _sp; // +1 for sp (request:version)
+            return req[sm & 0b11] + sp; // +1 for sp (request:version)
         }
 
         inline std::size_t version_size(void) const 
@@ -249,7 +249,7 @@ namespace httpvo::Implementation
 
         inline std::size_t start_of_status_uri(void) const
         {
-            return req[(_sm >> 2) & 0b11] + 1; // +1 for sp
+            return req[(sm >> 2) & 0b11] + 1; // +1 for sp
         }
 
         inline std::size_t status_uri_size(void) const 
@@ -259,7 +259,7 @@ namespace httpvo::Implementation
 
         inline std::size_t start_of_method_msg(void) const 
         {
-            return req[(_sm >> 4) & 0b11] + !_sp; // +1 for sp (msg)
+            return req[(sm >> 4) & 0b11] + !sp; // +1 for sp (msg)
         }
         
         inline std::size_t method_or_msg_size(void) const

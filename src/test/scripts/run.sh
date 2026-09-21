@@ -21,7 +21,7 @@ if [[ -z $CXXFILE ]]; then
         echo -e "missing filename. Expected \`$0 CXXFILENAME -O{OPT_LEVEL} {-OPTIONS...}\`"
         exit -1
     fi
-    $OUTPUT_FILE && exit 0
+    $OUTPUT_FILE --benchmark_min_warmup_time=10 && exit 0
 elif [[ ! $CXXFILE =~ [[:alpha:]]+\.{1}(c(c|p|(pp)|(xx)|(\+\+)){1}$)|C(PP)?$ ]]; then
     echo -e "Invalid C++ file extension. required file must be *.c(c|p|pp|xx) or *.C(PP)"
     exit -1
@@ -70,5 +70,5 @@ RUN="$CMD $CXXSTANDARD $OPTIONS $OPT_LEVEL $FEATURE_FLAGS $CXXFILE -o $OUTPUT_FI
 
 echo -e "$DASHRunning cmd '$RUN'\n$DASH"
 if $RUN; then
-    $OUTPUT_FILE && exit 0
+    $OUTPUT_FILE --benchmark_min_warmup_time=10 && exit 0
 fi

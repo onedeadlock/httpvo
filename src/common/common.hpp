@@ -29,7 +29,7 @@ namespace httpvo::common
     {
         #if HAVE__ARM_NEON__
         return vget_lane_u64(vld1_u64(reinterpret_cast<const u64_t *>(b)), 0);
-        #elif __HAVE_SUPPORT_FOR_UNALIGNED__
+        #elif __HAVE_SUPPORT_FOR_UNALIGNED__ 
         return reinterpret_cast<u64_t *>(b)[0];
         #endif
         u64_t v;
@@ -55,7 +55,11 @@ namespace httpvo::common
 
     inline u64_t _cmpeq(u64_t u, u64_t v, u64_t w)
     {
-        return _cmpeq(u, v) | _cmpeq(u, w);
+        u64_t x = u ^ v;
+        u64_t y = u ^ w;
+        u64_t a = (x & constant::c7f) + constant::c7f;
+        u64_t b = (y & constant::c7f) + constant::c7f;
+        return bits::andnot(constant::c80, (x | a) & (y | b));
     }
 
     inline u64_t _cmpgtz(u64_t v)
