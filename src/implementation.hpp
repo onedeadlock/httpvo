@@ -167,9 +167,9 @@ namespace httpvo::Implementation
         bool parse_completed   : 1;
 
         inline bool completed_request_line(bool x)  { return request_completed = x; }
-        inline void set_pending_value(bool x)       { pending_value = x; }
-        inline void set_trailing_ret(bool x)        { trailing_ret  = x; }
-        inline void set_trailing_wsp(bool x)        { trailing_wsp  = x; }
+        inline bool set_pending_value(bool x)       { pending_value = x; return 0;  }
+        inline bool set_trailing_ret(bool x)        { trailing_ret  = x; return 0;  }
+        inline bool set_trailing_wsp(bool x)        { trailing_wsp  = x; return 0;  }
         inline bool completed_request_line(void)  const { return request_completed; }
         inline bool has_pending_value(void)       const { return pending_value;     }
         inline bool has_trailing_ret(void)        const { return trailing_ret;      }
@@ -188,7 +188,7 @@ namespace httpvo::Implementation
             reqline.reset();
         }
 
-        int parse_header_line_sc(void *in, std::size_t in_size, std::size_t run_size);
+        int scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t);
     private:
         // header line (version, method, version, status, message)
         ReqLine reqline;
@@ -202,41 +202,18 @@ namespace httpvo::Implementation
         bool at_start_line;
 
         template <typename T, T out_size, int N>
-        int parse(void *in, std::size_t in_size, req<T, out_size>& out, std::size_t run_size, std::size_t rem);
+        int parse(void *, std::size_t, req<T, out_size>&, std::size_t, std::size_t);
         template<int N>
-        int parse_request_line(void *in, std::size_t size, const simdv<N>& v, u64_t& lf, u64_t& cr, u64_t& crlf);
+        int parse_request_line(void *, std::size_t, const simdv<N>&, u64_t&, u64_t&, u64_t&);
         template <typename T, T out_size, int N>
-        int parse_header(void *in, std::size_t in_size, req<T, out_size>& out, const simdv<N>& v, u64_t lf, u64_t cr, u64_t crlf);
+        int parse_header(void *, std::size_t, req<T, out_size>&, const simdv<N>&, u64_t, u64_t, u64_t);
         template <typename T, T out_size>
-        int nparse_no_rescan(void *in, std::size_t in_size, std::size_t run_size, req<T, out_size> &out);
+        int nparse_no_rescan(void *, std::size_t, std::size_t, req<T, out_size> &);
 
         inline bool parse_failed(int stat)
         {
             return stat < 0;
         }
-
-        inline int set_minor_version(u8_t i)
-        {
-            return (this->version = i ^ '\x30') < 10;
-        }
-
-        inline bool req_version_is_http_1(void *b)
-        {
-            return common::version_is_http_1(b) and set_minor_version(reinterpret_cast<u8_t *>(b)[7]);
-        }
-
-        inline bool set_version_tag(void *in)
-        {
-            static constexpr u8_t req_version_required_size = 8; // len(HTTP/1.x)
-            bool is_correct_size = reqline.version_size() == req_version_required_size;
-            return is_correct_size and req_version_is_http_1(reinterpret_cast<u8_t *>(in) + reqline.start_of_version());
-        }
-
-        inline int end_of_header_line(void *in, auto error)
-        {
-            state.completed_request_line(true);
-            return -(error or set_version_tag(in) isnot http_1);
-        };
     };
 };
 #endif //IMPLEMENTATION_HPP

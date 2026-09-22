@@ -23,7 +23,7 @@ void test(void)
     {
         if (common::is_whitespace(c))
         {
-            x.post() += i;
+            x.add_len(i);
         }
         i++;
     }
@@ -52,7 +52,7 @@ void test(void)
     {
         if (common::is_whitespace(k))
         {
-            x.post() += i;
+            x.add_len(i);
         }
         i++;
     }

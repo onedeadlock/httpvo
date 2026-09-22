@@ -201,10 +201,5 @@ namespace httpvo::common
             return b == end;
         return is_valid_name_token_loop(b, r);
     }
-
-    inline bool version_is_http_1(void *b)
-    {
-        return constant::mask_http_1 == (reinterpret_cast<u64_t *>(b)[0] & 0x00ffffffffffffffULL);
-    }  
 }
 #endif // HTTPVO_COMMON_HPP

@@ -1,30 +1,33 @@
 #include <benchmark/benchmark.h>
 #include "../scalar_impl.hpp"
 
-using namespace httpvo::Implementation;
+using namespace httpvo;
 alignas(8) static char str[] = "GET https://g232332o279627368472368472364872348792734627346927346928346923846923846932323232332ogle.com/index HTTP1.1\r\n";
 
 void correct_request_line_index(void)
 {
-     http test_parse;
+     Implementation::http test_parse;
      std::size_t len = strlen(str);
      (void)len;
 }
 
 static void BM_speed_test_1(benchmark::State& state)
 {
-     http test_parse;
+     Implementation::http test_parse;
+     ReqLine req;
+     req.request();
+
      std::size_t len = strlen(str);
 
      for (auto _ : state)
      {
-        int res = test_parse.parse_header_line_sc(str, len, len);
+        int res = test_parse.scparse_header_line((u8_t *)str, req, len, len);
         benchmark::DoNotOptimize(res);
         //test_parse.reset();
      }
 }
 
-BENCHMARK(BM_speed_test_1);
+BENCHMARK(BM_speed_test_1)->Repetitions(10);
 
 int main(int argc, char **argv)
 {
