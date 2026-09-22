@@ -4,6 +4,7 @@
 #include "include/definition.hpp"
 #include "include/constants.hpp"
 #include "include/bits.hpp"
+#include "include/reqline.hpp"
 #include "common/common.hpp"
 //#include "simd/implementation.hpp"
 
@@ -173,99 +174,6 @@ namespace httpvo::Implementation
         inline bool has_pending_value(void)       const { return pending_value;     }
         inline bool has_trailing_ret(void)        const { return trailing_ret;      }
         inline bool has_trailing_wsp(void)        const { return trailing_wsp;      }
-    };
-
-    struct ReqLine
-    {
-        static constexpr u8_t m_3_2_1 = 0b111001U;
-        static constexpr u8_t m_1_0_3 = 0b010011U;
-
-        /* request line is splitted and saved in the manner below:
-            [N]   request | response
-            ______________|________
-            [0]  0        |    0
-            [1]  version  | version
-            [2]  uri      | status
-            [3]  method   | message (optional)
-        */
-   
-        std::size_t req[4]{0};
-        i8_t sm, st, end, i, sp;
-   
-        u8_t type(void)
-        {
-            return sm;
-        }
-
-        inline void reset(void)
-        {
-            req[1] = req[2] = req[3] = 0;
-            sm = st = end = i = sp = 0;
-        }
-
-        inline void request(void)
-        {
-            req[1] = req[2] = req[3] = 0;
-            sm = m_3_2_1, st = 2, end = i = -1, sp = 1;
-        }
-
-        inline void response(void)
-        {
-            req[1] = req[2] = req[3] = 0;
-            sm = m_1_0_3, st = 0, end = 3, i = 1, sp = 0;
-        }
-
-        inline std::size_t& next(void)
-        {
-            return req[st += i];
-        }
-
-        inline std::size_t& post(void)
-        {
-            const u8_t x = st;
-            st += i;
-            return req[x];
-        }
-
-        inline u8_t at(void) const
-        {
-            return st;
-        }
-
-        inline bool complete(void) const
-        {
-            return st == end;
-        }
-
-        inline std::size_t start_of_version(void) const 
-        {
-            return req[sm & 0b11] + sp; // +1 for sp (request:version)
-        }
-
-        inline std::size_t version_size(void) const 
-        {
-            return req[0] - start_of_version();
-        }
-
-        inline std::size_t start_of_status_uri(void) const
-        {
-            return req[(sm >> 2) & 0b11] + 1; // +1 for sp
-        }
-
-        inline std::size_t status_uri_size(void) const 
-        {
-            return req[1] - start_of_status_uri();
-        }
-
-        inline std::size_t start_of_method_msg(void) const 
-        {
-            return req[(sm >> 4) & 0b11] + !sp; // +1 for sp (msg)
-        }
-        
-        inline std::size_t method_or_msg_size(void) const
-        {
-            return req[2] - start_of_method_msg();
-        }
     };
 
     class http

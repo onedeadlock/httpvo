@@ -16,7 +16,7 @@ void test(void)
     std::string request  = "GET ./index HTTP/1.1 ";
     std::string response = "HTTP/1.1 200 OK ";
     std::size_t i = 0;
-    Implementation::ReqLine x{0};
+    ReqLine x{0};
    
     x.request();
     for (auto c : request)
@@ -48,9 +48,9 @@ void test(void)
 
     x.response();
     i = 0;
-    for (auto c : response)
+    for (auto k : response)
     {
-        if (common::is_whitespace(c))
+        if (common::is_whitespace(k))
         {
             x.post() += i;
         }
@@ -74,6 +74,8 @@ void test(void)
 
     if (x.status_uri_size() != 3)
         error("size of version is incorrect", 3, x.status_uri_size());
+
+    puts("ALL PASSED");
 }
 
 int main(void)

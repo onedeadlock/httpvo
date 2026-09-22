@@ -86,14 +86,14 @@ namespace httpvo::common
     template <u8_t A, u8_t B, typename T>
     inline u64_t _cmp_gt_and_lt(T v)
     {
-        #if HAVE__ARM_NEON__ && 0 // scalar is faster
+        #if HAVE__ARM_NEON__
         if constexpr (sizeof(T) == 8)
         {
-            static const uint8x8_t a = vdup_n_u8(A);
-            static const uint8x8_t b = vdup_n_u8(B);
+            uint8x8_t a = vdup_n_u8(A);
+            uint8x8_t b = vdup_n_u8(B);
             uint8x8_t x = vcreate_u8(v);
             uint8x8_t o = vand_u8(vcgt_u8(x, a), vclt_u8(x, b));
-            return vget_lane_u64(vreinterpret_u64_u8(o), 0);
+            return vget_lane_u64(vand_u64(vreinterpret_u64_u8(o), vcreate_u64(constant::c80)), 0);
         }
         #endif
         static_assert(A < 0x7f && B < 0x80);

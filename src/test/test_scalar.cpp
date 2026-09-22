@@ -24,7 +24,7 @@ static void BM_speed_test_1(benchmark::State& state)
      }
 }
 
-BENCHMARK(BM_speed_test_1)->Iterations(64)->Repetitions(10);
+BENCHMARK(BM_speed_test_1);
 
 int main(int argc, char **argv)
 {
