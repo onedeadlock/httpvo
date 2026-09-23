@@ -23,11 +23,11 @@ static void BM_speed_test_1(benchmark::State& state)
      {
         int res = test_parse.scparse_header_line((u8_t *)str, req, len, len);
         benchmark::DoNotOptimize(res);
-        //test_parse.reset();
+        req.request();
      }
 }
 
-BENCHMARK(BM_speed_test_1)->Repetitions(10);
+BENCHMARK(BM_speed_test_1);
 
 int main(int argc, char **argv)
 {
