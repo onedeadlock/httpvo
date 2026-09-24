@@ -6,47 +6,48 @@ namespace httpvo::Implementation
 {
     inline bool is_valid(u8_t i) { return i > 0x20 and i < 0x7f; }
 
-    inline int parse_single_char(u8_t *b, ReqLine& req, bool& tsp, std::size_t run_size, std::size_t i)
+    inline _Status parse_single_char(u8_t *b, ReqLine& req, bool& tsp, std::size_t run_size, std::size_t i)
     {
-        u8_t n_i = i + 1;
+        std::size_t n_i = i + 1;
         u8_t c   = b[i];
         if (common::is_whitespace(c)) [[unlikely]]
         {
             if (tsp) [[unlikely]]
                 return -1;
             tsp = true;
-            return req.add_len(i) and n_i < run_size;
+            return {req.add_len(i) and n_i < run_size, -2};
         }
         if (c == '\xd') [[unlikely]]
         {
-            if (n_i < run_size and b[n_i] != '\xa')
-                return -1;
-            return req.add_len(i);
+            if (n_i == run_size)
+                return {req.add_len(i), -2};
+            c = b[n_i];
         }
         if (c == '\xa')
-            return 0;
+        {
+            req.add_len(i);
+            return {req.set_version(b), 0};
+        }
         if (not is_valid(c)) [[unlikely]]
             return -1;
         tsp = false;
         return n_i < run_size;
     }
 
-    inline int parse_trailing_chars(u8_t *b, ReqLine& req, std::size_t i, std::size_t run_size, bool trailing_wsp)
+    inline _Status parse_trailing_chars(u8_t *b, ReqLine& req, std::size_t i, std::size_t run_size, bool trailing_wsp)
     {
-        int stat = 0;
-        if      ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+0)) < 1);
-        else if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+1)) < 1);
-        else if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+2)) < 1);
-        else if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+3)) < 1);
-        else if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+4)) < 1);
-        else if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+5)) < 1);
-        else if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+6)) < 1);
-        if (stat != 0) 
-            return stat;
-        return req.set_version(b);
+        _Status stat {0};
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+0)) < 1) return stat;
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+1)) < 1) return stat;
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+2)) < 1) return stat;
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+3)) < 1) return stat;
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+4)) < 1) return stat;
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+5)) < 1) return stat;
+        if ((stat = parse_single_char(b, req, trailing_wsp, run_size, i+6)) < 1) return stat;
+        return stat;
     }
 
-     int http::scparse_header_line(u8_t *b, ReqLine& req, std::size_t in_size, std::size_t run_size)
+     _Status http::scparse_header_line(u8_t *b, ReqLine& req, std::size_t in_size, std::size_t run_size)
     {
         std::size_t i = in_reader.at();
         u64_t tsp     = 0;
@@ -60,35 +61,37 @@ namespace httpvo::Implementation
                 tsp = 0;
                 continue;
             }
-            for (; out_mask and not req.complete(); out_mask &= out_mask - 1)
+            for (; out_mask; out_mask &= out_mask - 1)
             {
-                u64_t k  = bits::tzcnt(out_mask) / 8;
-                u8_t *vp = reinterpret_cast<u8_t *>(&v) + k;
+                u64_t offset  = bits::tzcnt(out_mask) / 8;
+                u8_t *vp = reinterpret_cast<u8_t *>(&v) + offset;
                 u8_t  c  = vp[0];
 
-                req.add_len(i + k);
-                if (common::is_whitespace(c)) [[likely]]
+                req.add_len(i + offset);
+                if (c == '\x20' or c == '\x9') [[likely]]
                 {
                     if (tsp & out_mask) [[unlikely]]
                         return -1;
                     tsp = out_mask << 8;
-                    continue;
+                    if (req.complete())
+                        return {0, -2};
+                    break;
                 }
                 if (c == '\xd')
                 {
                     state.set_trailing_ret(true);
-                    if ((k + 1) == run_size) [[unlikely]]
-                        return req.set_version(b) - 2;
+                    if ((offset + 1) == run_size) [[unlikely]]
+                        return {req.set_version(b), -2};
                     c = vp[1];
                 }
-                if (c == '\xa') [[likely]]
+                if (c == '\xa')
                     return req.set_version(b);
                 return -1;
             }
         }
        if (i != run_size)
             return parse_trailing_chars(b, req, i, run_size, 0);
-        return 1;
+        return {0, -2};
     }
 }
 

@@ -18,6 +18,60 @@ namespace httpvo::Implementation
 
     template <int N> struct simdv;
 
+    struct _Status
+    {
+        int status = 0;
+        int code   = 0;
+
+        inline constexpr _Status(int s) : status{s} {}
+        inline constexpr _Status(int s, int e) : status{s}, code{e} {}
+
+        inline bool operator==(int s) const
+        {
+            return status == s;
+        }
+
+        inline bool operator==(const _Status &s) const
+        {
+            return status == s.status;
+        }
+
+        inline bool operator!=(int s) const
+        {
+            return status != s;
+        }
+
+        inline bool operator!=(const _Status &s) const
+        {
+            return status != s.status;
+        }
+
+        inline bool operator not(void) const
+        {
+            return not status;
+        }
+
+        inline bool operator>(int s) const
+        {
+            return status > s;
+        }
+
+        inline bool operator<(int s) const
+        {
+            return status < s;
+        }
+
+        inline bool is_error(void) const
+        {
+            return code < 0;
+        }
+
+        inline int error_code(void) const
+        {
+            return code;
+        }
+    };
+
     template <typename T, T N>
     struct req
     {
@@ -188,7 +242,7 @@ namespace httpvo::Implementation
             reqline.reset();
         }
 
-        int scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t);
+        _Status scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t);
     private:
         // header line (version, method, version, status, message)
         ReqLine reqline;

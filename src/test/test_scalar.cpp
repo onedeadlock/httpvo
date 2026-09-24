@@ -21,13 +21,13 @@ static void BM_speed_test_1(benchmark::State& state)
 
      for (auto _ : state)
      {
-        int res = test_parse.scparse_header_line((u8_t *)str, req, len, len);
+        auto res = test_parse.scparse_header_line((u8_t *)str, req, len, len);
         benchmark::DoNotOptimize(res);
         req.request();
      }
 }
 
-BENCHMARK(BM_speed_test_1);
+BENCHMARK(BM_speed_test_1)->Iterations(64900)->Repetitions(6)->ReportAggregatesOnly()->MinTime(5);
 
 int main(int argc, char **argv)
 {

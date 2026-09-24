@@ -98,12 +98,12 @@ namespace httpvo
             return st == end;
         }
 
-        inline bool add_len(std::size_t len)
+        inline bool add_len(const std::size_t len)
         {
-            u8_t x = st;
+            const u8_t x = st;
             st += i;
             req[x] += len;
-            return complete();
+            return st != end;
         }
 
         inline int minor_version(void)
