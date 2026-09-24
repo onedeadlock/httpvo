@@ -9,23 +9,27 @@ int main(void)
 
     req.request();
 
-    int stat = parser.scparse_header_line((httpvo::u8_t *)request, req, len, len);
-    std::cout << stat << std::endl;
+    httpvo::Implementation::_Status stat = parser.scparse_header_line((httpvo::u8_t *)request, req, len , 0, 0, 0);
+    std::cout << stat.error_code() << std::endl;
     if (stat < 0)
     {
         std::cerr << "parsing error" << std::endl;
     }
+
     std::cout << req.req[0] << std::endl;
     std::cout << int(req.st) << std::endl;
+    
+
+    std::cout << request + req.start_of_method_msg() << std::endl;
+    std::cout << request + req.start_of_status_uri() << std::endl;
+    std::cout << request + req.start_of_version() << std::endl;
+    std::cout << stat.error_code() << std::endl;
+
     if (std::strncmp(request + req.start_of_version(), "HTTP/1.1", req.version_size()) != 0)
     {
         std::cerr << "parsing version failed\n";
         return -1;
     }
-        return 0;
-    std::cout << request + req.start_of_method_msg() << std::endl;
-    std::cout << request + req.start_of_status_uri() << std::endl;
-    std::cout << request + req.start_of_version() << std::endl;
-    std::cout << stat << std::endl;
+    
     return 0;
 }

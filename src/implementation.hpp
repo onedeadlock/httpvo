@@ -243,7 +243,7 @@ namespace httpvo::Implementation
         }
 
         template<int N>
-        _Status scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t);
+        _Status scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t, u64_t, u64_t);
     private:
         // header line (version, method, version, status, message)
         ReqLine reqline;

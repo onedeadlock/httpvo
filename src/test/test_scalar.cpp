@@ -21,13 +21,13 @@ static void BM_speed_test_1(benchmark::State& state)
 
      for (auto _ : state)
      {
-        auto res = test_parse.scparse_header_line((u8_t *)str, req, 0, len);
+        auto res = test_parse.scparse_header_line((u8_t *)str, req, len, 0, constant::cff, 0);
         benchmark::DoNotOptimize(res);
         req.request();
      }
 }
 
-BENCHMARK(BM_speed_test_1)->Iterations(64900)->Repetitions(6)->ReportAggregatesOnly()->MinTime(5);
+BENCHMARK(BM_speed_test_1)->Repetitions(10)->Iterations(64900)->ReportAggregatesOnly()->MinWarmUpTime(5);
 
 int main(int argc, char **argv)
 {
