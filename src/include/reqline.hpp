@@ -93,12 +93,12 @@ namespace httpvo
             return req[2] - start_of_method_msg();
         }
 
-        inline bool complete(void) const
+        inline int complete(void) const
         {
             return st == end;
         }
 
-        inline bool add_len(const std::size_t len)
+        inline int add_len(const std::size_t len)
         {
             const u8_t x = st;
             st += i;
@@ -111,12 +111,12 @@ namespace httpvo
             return vs;
         }
 
-        inline bool set_minor_version(u8_t i)
+        inline int set_minor_version(u8_t i)
         {
             return (vs = i ^ '\x30') < 10;
         }
 
-        inline bool version_is_http_1_mask(u64_t v)
+        inline int version_is_http_1_mask(u64_t v)
         {
             return not ((v & 0x00ffffffffffffffULL) ^ 0x002e312f50545448ULL);
         }

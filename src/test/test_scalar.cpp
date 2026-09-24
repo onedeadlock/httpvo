@@ -21,7 +21,7 @@ static void BM_speed_test_1(benchmark::State& state)
 
      for (auto _ : state)
      {
-        auto res = test_parse.scparse_header_line((u8_t *)str, req, len, len);
+        auto res = test_parse.scparse_header_line((u8_t *)str, req, 0, len);
         benchmark::DoNotOptimize(res);
         req.request();
      }

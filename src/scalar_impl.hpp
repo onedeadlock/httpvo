@@ -4,6 +4,8 @@
 
 namespace httpvo::Implementation
 {
+    constexpr int TRAIL = 0;
+
     inline bool is_valid(u8_t i) { return i > 0x20 and i < 0x7f; }
 
     inline _Status parse_single_char(u8_t *b, ReqLine& req, bool& tsp, std::size_t run_size, std::size_t i)
@@ -20,7 +22,7 @@ namespace httpvo::Implementation
         if (c == '\xd') [[unlikely]]
         {
             if (n_i == run_size)
-                return {req.add_len(i), -2};
+                return {0, -2};
             c = b[n_i];
         }
         if (c == '\xa')
@@ -47,15 +49,20 @@ namespace httpvo::Implementation
         return stat;
     }
 
+    template<int N=!TRAIL>
      _Status http::scparse_header_line(u8_t *b, ReqLine& req, std::size_t in_size, std::size_t run_size)
     {
-        std::size_t i = in_reader.at();
+        std::size_t i = in_size;
+        std::size_t stop_size = 0;
         u64_t tsp     = 0;
 
-        for (std::size_t stop_size = run_size & ~(8ULL - 1); i < stop_size; i += 8)
+        if constexpr (N != TRAIL) stop_size = run_size & ~(8ULL - 1); else stop_size = run_size;
+        for (; i < stop_size; i += 8)
         {
             u64_t v = common::_load_u64(b + i);
             u64_t out_mask = ~common::_cmp_gt_and_lt<0x20, 0x7f>(v) & constant::c80;
+            if constexpr (N == TRAIL)
+                out_mask &= constant::cff << (run_size % 8 * 8); // mask out back-padded bytes
             if (not out_mask) [[likely]]
             {
                 tsp = 0;
@@ -67,32 +74,49 @@ namespace httpvo::Implementation
                 u8_t *vp = reinterpret_cast<u8_t *>(&v) + offset;
                 u8_t  c  = vp[0];
 
-                req.add_len(i + offset);
-                if (c == '\x20' or c == '\x9') [[likely]]
+                if (c == '\x20' or c == '\x9')
                 {
                     if (tsp & out_mask) [[unlikely]]
                         return -1;
                     tsp = out_mask << 8;
-                    if (req.complete())
-                        return {0, -2};
-                    break;
+                    if (not req.add_len(i + offset))
+                        return -1;
+                    continue;
                 }
                 if (c == '\xd')
                 {
-                    state.set_trailing_ret(true);
                     if ((offset + 1) == run_size) [[unlikely]]
-                        return {req.set_version(b), -2};
+                        return {0, -2};
                     c = vp[1];
                 }
                 if (c == '\xa')
+                {
+                    req.add_len(i + offset);
                     return req.set_version(b);
+                }
                 return -1;
             }
+            tsp = bool(tsp) << 7;
+            if constexpr (N == TRAIL)
+                break;
         }
-       if (i != run_size)
-            return parse_trailing_chars(b, req, i, run_size, 0);
-        return {0, -2};
+        if constexpr (N != TRAIL)
+            if (run_size > 7)
+                return scparse_header_line<TRAIL>(b, req, i - (run_size % 8), run_size);
+        return parse_trailing_chars(b, req, i, run_size, tsp);
     }
 }
+
+/*
+
+    7 bytes and run_size > 7
+
+    run_size = 19
+    i = 16
+    rem = 3
+    new = 19 - ( 8 - 3) = 19 - 5s
+    
+
+*/
 
 #endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP
