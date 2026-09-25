@@ -6,7 +6,7 @@
 #include "include/bits.hpp"
 #include "include/reqline.hpp"
 #include "common/common.hpp"
-//#include "simd/implementation.hpp"
+#include "simd/implementation.hpp"
 
 namespace httpvo::Implementation
 {

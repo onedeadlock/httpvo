@@ -6,10 +6,10 @@
 namespace httpvo
 {
     /*
-    * The Http/1 header line is saved in req[] such that, both positions of the version (HTTP/1.x),
-    * in the request/response line is at the same index 0, of the array. Therefore, for request line, we insert decrementally from 2 - 0 and do the reverse for
-    * response line (version is already the first token)
-    * Only the last position of the token is stored during read. The start position and length is computed later.
+    * The header line tokens are inserted in req[] such that, the position of the version (HTTP/1.x) 
+    * in the request/response line is at the same index 0, of the array. Therefore, for request line,
+    * we insert decrementally from 2 - 0 and do the reverse for response line (since version is already the first token in it).
+    * Only the index of the last character in a token is stored during read. The start index and length of the token is computed later.
     *
     *        [N]   request | response
     *        ______________|________
@@ -27,7 +27,7 @@ namespace httpvo
     *  URI/STATUS    1 - (N - 1) - 1(whitespace)
     *  VERSION       0 - (N - 1) - 1(whitespace)
     * 
-    * Where N is the actual start position of the tokens (GET(0) before URI(1) before VERSION(2), etc) as specified in rfc7....
+    * Where N - 1 is the start index of the tokens (GET(0) before URI(1) before VERSION(2), etc) as specified in rfc9110
     * When N - 1 < 0 (the case for first tokens, GET in request and VERSION in response line),
     * we wrap to index 3 of the array, which is always set to zero, so that the subtraction leaves the value unchanged
     */
@@ -128,6 +128,8 @@ namespace httpvo
 
         inline bool version_is_http_1(u8_t *b)
         {
+            if constexpr (OPTIMIZE_FOR_MOST_CASE)
+                return version_is_http_1_mask(common::_load_u64(b)) and set_minor_version(b[7]);
             if (std::uintptr_t(b) & (8 - 1))
                 return version_is_http_1_mask(reinterpret_cast<u64_t *>(b)[0]) and set_minor_version(b[7]);
             return version_is_http_1_rd(b) and set_minor_version(b[7]);
@@ -138,7 +140,7 @@ namespace httpvo
             return version_size() == required_version_size;
         }
 
-        inline bool set_version(u8_t *b)
+        inline int set_version(u8_t *b)
         {
             return is_expected_version_size() and version_is_http_1(b + start_of_version());
         }

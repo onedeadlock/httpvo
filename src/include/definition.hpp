@@ -145,9 +145,7 @@
 //////////// HTTPVO ///////////
 //////////////////////////////
 namespace httpvo
-{
-    template <typename base> struct simd64;
-    
+{   
     using u8_t  = std::uint8_t;
     using i8_t  = std::int8_t;
     using u16_t = std::uint16_t;

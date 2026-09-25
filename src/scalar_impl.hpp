@@ -4,7 +4,9 @@
 
 namespace httpvo::Implementation
 {
-    constexpr int TRAIL = 1;
+    constexpr int TRAIL = 0;
+    static constexpr int CR = '\xd';
+    static constexpr int LF = '\xa';
 
     inline bool is_valid(u8_t i) { return i > 0x20 and i < 0x7f; }
 
@@ -19,13 +21,13 @@ namespace httpvo::Implementation
             tsp = true;
             return {req.add_len(in_size) and n_i < run_size, -2};
         }
-        if (c == '\xd') [[unlikely]]
+        if (c == CR) [[unlikely]]
         {
             if (n_i == run_size)
                 return {0, -2};
             c = b[n_i];
         }
-        if (c == '\xa')
+        if (c == LF)
         {
             req.add_len(in_size);
             return {req.set_version(b), 0};
@@ -49,15 +51,14 @@ namespace httpvo::Implementation
         return stat;
     }
 
-    template<int N=0>
+    template<int N=8>
      _Status http::scparse_header_line(u8_t *b, ReqLine& req, std::size_t run_size, std::size_t in_size, u64_t mask, u64_t tsp)
     {
         std::size_t stop_size;
         if constexpr (N != TRAIL) stop_size = run_size & ~(8ULL - 1); else stop_size = run_size;
         for (; in_size < stop_size; in_size += 8)
         {
-            u64_t v = common::_load_u64(b + in_size);
-            u64_t out_mask = (~common::_cmp_gt_and_lt<0x20, 0x7f>(v) & constant::c80) & mask;
+            const u64_t out_mask = mask & (simdv<N>::load(b + in_size).cmpgt_lt<'\x20', '\x7f'>().to_bitmask());
             if (not out_mask) [[likely]]
             {
                 tsp = 0;
@@ -65,26 +66,25 @@ namespace httpvo::Implementation
             }
             for (; out_mask; out_mask &= out_mask - 1)
             {
-                u64_t offset  = bits::tzcnt(out_mask) >> 3;
-                u8_t *vp = reinterpret_cast<u8_t *>(&v) + offset;
-                u8_t  c  = vp[0];
+                const u64_t offset  = bits::tzcnt(out_mask) >> 3;
+                u8_t c = (b + in_size)[offset];
 
                 if (common::is_whitespace(c)) [[likely]]
                 {
                     if (tsp & out_mask) [[unlikely]]
                         return -1;
-                    tsp = out_mask << 8;
-                    if (not req.add_len(in_size + offset))
+                    if (not req.add_len(in_size + offset)) [[unlikely]]
                         return -1;
+                    tsp = out_mask << 8;
                     continue;
                 }
-                if (c == '\xd')
+                if (c == CR)
                 {
                     if ((offset + 1) == run_size) [[unlikely]]
                         return {0, -2};
-                    c = vp[1];
+                    c = (b + in_size)[offset + 1];
                 }
-                if (c == '\xa')
+                if (c == LF)
                 {
                     req.add_len(in_size + offset);
                     return req.set_version(b);
@@ -92,16 +92,16 @@ namespace httpvo::Implementation
                 return -1;
             }
             tsp = bool(tsp) << 7;
-            if constexpr (N == TRAIL)
-                break;
         }
         if constexpr (N != TRAIL)
+        {
             if (run_size > 7)
             {
                 // process trailing bytes by overlapping last read bytes with the remaining bytes
-                std::size_t r = run_size & (8 - 1);
+                const std::size_t r = run_size & (8 - 1);
                 return scparse_header_line<TRAIL>(b, req, run_size, in_size - (8 - r), constant::cff << (r * 8), tsp << (r * 8));
             }
+        }
         // bytes (run_size) are genuinely lesser than 8
         return parse_trailing_chars(b, req, run_size, in_size, tsp);
     }

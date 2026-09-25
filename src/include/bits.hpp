@@ -19,7 +19,7 @@ namespace httpvo::bits
 #endif
 
     template <_32_64_uint_type T, _32_64_uint_type Y>
-    make_flat inline T andnot(T x, Y y)
+    inline T andnot(T x, Y y)
     {
         return x & ~y;
     }
@@ -31,23 +31,23 @@ namespace httpvo::bits
     }
 
     template <_32_64_uint_type T>
-    make_flat inline T ltrim(T x)
+    inline T ltrim(T x)
     {
         return andnot(x, x << 1);
     }
 
     template <_32_64_uint_type T>
-    make_flat inline T rtrim(T x)
+    inline T rtrim(T x)
     {
         return andnot(x, x >> 1);
     }
 
-    make_flat inline u64_t bltrim(u64_t x)
+    inline u64_t bltrim(u64_t x)
     {
         return andnot(x, x << 8);
     }
 
-    make_flat inline u64_t brtrim(u64_t x)
+    inline u64_t brtrim(u64_t x)
     {
         return andnot(x, x >> 8);
     }

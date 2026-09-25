@@ -12,7 +12,6 @@ namespace httpvo::common
         return U64(v) * constant::c01;
     }
 
-
     inline u64_t _load_u32(void *b)
     {
         #if __HAVE_SUPPORT_FOR_UNALIGNED__
