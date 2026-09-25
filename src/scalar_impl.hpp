@@ -58,7 +58,8 @@ namespace httpvo::Implementation
         if constexpr (N != TRAIL) stop_size = run_size & ~(8ULL - 1); else stop_size = run_size;
         for (; in_size < stop_size; in_size += 8)
         {
-            const u64_t out_mask = mask & (simdv<N>::load(b + in_size).cmpgt_lt<'\x20', '\x7f'>().to_bitmask());
+            const simdv<N> v{b + in_size};
+            const u64_t out_mask = mask & (~v.cmpgt_lt<'\x20', '\x7f'>().to_bitmask() & constant::c80);
             if (not out_mask) [[likely]]
             {
                 tsp = 0;
@@ -66,7 +67,7 @@ namespace httpvo::Implementation
             }
             for (; out_mask; out_mask &= out_mask - 1)
             {
-                const u64_t offset  = bits::tzcnt(out_mask) >> 3;
+                const u64_t offset = bits::tzcnt(out_mask) >> 3;
                 u8_t c = (b + in_size)[offset];
 
                 if (common::is_whitespace(c)) [[likely]]
