@@ -9,7 +9,7 @@ int main(void)
 
     req.request();
 
-    httpvo::Implementation::_Status stat = parser.scparse_header_line((httpvo::u8_t *)request, req, len , 0, httpvo::constant::cff, 0);
+    httpvo::Implementation::_Status stat = parser.scparse_header_line<8>((httpvo::u8_t *)request, req, len , 0, httpvo::constant::cff, 0);
 
     if (stat < 0)
     {

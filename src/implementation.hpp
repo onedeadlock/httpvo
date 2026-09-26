@@ -6,8 +6,11 @@
 #include "include/bits.hpp"
 #include "include/reqline.hpp"
 #include "common/common.hpp"
-#include "simd/implementation.hpp"
-
+#if HAVE__SSE2__
+#    include "simd/westmere/implementation.hpp"
+#else
+#    include "simd/implementation.hpp"
+#endif
 namespace httpvo::Implementation
 {
     constexpr int COMPLETE = 0;
@@ -15,8 +18,6 @@ namespace httpvo::Implementation
 
     bool http_1 = true;
     bool done   = true;
-
-    template <int N> struct simdv;
 
     struct _Status
     {
@@ -242,7 +243,7 @@ namespace httpvo::Implementation
             reqline.reset();
         }
 
-        template<int N>
+        template<simd::VWidth N, bool ISTRAIL>
         _Status scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t, u64_t, u64_t);
     private:
         // header line (version, method, version, status, message)
@@ -259,9 +260,9 @@ namespace httpvo::Implementation
         template <typename T, T out_size, int N>
         int parse(void *, std::size_t, req<T, out_size>&, std::size_t, std::size_t);
         template<int N>
-        int parse_request_line(void *, std::size_t, const simdv<N>&, u64_t&, u64_t&, u64_t&);
+        int parse_request_line(void *, std::size_t, const simd::simdv<N>&, u64_t&, u64_t&, u64_t&);
         template <typename T, T out_size, int N>
-        int parse_header(void *, std::size_t, req<T, out_size>&, const simdv<N>&, u64_t, u64_t, u64_t);
+        int parse_header(void *, std::size_t, req<T, out_size>&, const simd::simdv<N>&, u64_t, u64_t, u64_t);
         template <typename T, T out_size>
         int nparse_no_rescan(void *, std::size_t, std::size_t, req<T, out_size> &);
 

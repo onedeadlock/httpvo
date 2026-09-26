@@ -1,26 +1,24 @@
 #ifndef HTTPVO_SIMD_WESTMERE_HPP
 #define HTTPVO_SIMD_WESTMERE_HPP
-#include "../../include/definition.hpp"
-#include "../../include/constants.hpp"
+#include "../implementation.hpp"
 
-namespace httpvo::simd::westmere
+namespace httpvo::simd
 {
-    template <int N> alignas(N) struct simdv;
-
     template<>
-    alignas(32) struct simdv<32>
+    struct simdv<32>
     {
-        static constexpr int   spec = SSE4;
-        static constexpr int   size = 32;
-        static constexpr u64_t msb  = constant::msb_32;
-        static constexpr u64_t msb3 = constant::msb3_32;
+        static constexpr int bitpos = 1;
 
         __m128i lo, hi;
-
 
         simdv(const simdv& v)  : lo{v.lo}, hi{v.hi}{}
         simdv(simdv&& v)       : lo{v.lo}, hi{v.hi}{}
         simdv(__m128i u, __m128i v) : lo{u}, hi{v}{}
+        explicit simdv(const void *b)
+        {
+            lo = _mm_loadu_si128(reinterpret_cast<const __m128i *>(b));
+            hi = _mm_loadu_si128(reinterpret_cast<const __m128i *>(reinterpret_cast<const u8_t *>(b) + 16));
+        }
 
         TARGET("sse4")
         inline bool is_zero(void)
@@ -31,10 +29,14 @@ namespace httpvo::simd::westmere
         TARGET("sse4")
         inline u64_t to_bitmask(void)
         {
-
             return static_cast<u32_t>(_mm_movemask_epi8(hi)) << 16 |
                    _mm_movemask_epi8(lo);
         }
+
+         static inline u64_t countz_bitmask(const mask_t m)
+          {
+               return bits::tzcnt(m);
+          }
 
         TARGET("sse4")
         static inline simdv load(void *b)
@@ -114,13 +116,24 @@ namespace httpvo::simd::westmere
         }
 
         TARGET("sse4")
-        static inline simdv gt_and_lt(const simdv& v, u8_t a, u8_t b)
+        static inline simdv cmpgt_lt(const simdv& v, u8_t a, u8_t b)
         {
             __m128i x = _mm_set1_epi8(a);
             __m128i y = _mm_set1_epi8(b);
             return {
                 _mm_and_si128(_mm_cmpgt_epi8(v.lo, x), _mm_cmplt_epi8(v.lo, y)),
                 _mm_and_si128(_mm_cmpgt_epi8(v.lo, x), _mm_cmplt_epi8(v.lo, y)),
+            };
+        }
+
+        template<u8_t a=0, u8_t b=0>
+        static inline simdv cmpngt_lt(const simdv& v, u8_t _aa=0, u8_t _bb=0)
+        {
+            __m128i x = _mm_set1_epi8(a);
+            __m128i y = _mm_set1_epi8(b);
+            return {
+                _mm_or_si128(_mm_cmplt_epi8(v.lo, x), _mm_cmpgt_epi8(v.lo, y)),
+                _mm_or_si128(_mm_cmplt_epi8(v.lo, x), _mm_cmpgt_epi8(v.lo, y)),
             };
         }
 
