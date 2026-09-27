@@ -5,6 +5,64 @@
 namespace httpvo::simd
 {
     template<>
+    struct simdv<16>
+    {
+        static constexpr int bitpos = 1;
+
+        __m128i lo;
+
+        simdv(const simdv& v)  : lo{v.lo}{}
+        simdv(simdv&& v)       : lo{v.lo}{}
+        simdv(__m128i u)       : lo{u}{}
+        explicit simdv(const void *b)
+        {
+            lo = _mm_loadu_si128(reinterpret_cast<const __m128i *>(b));;
+        }
+
+        TARGET("sse4")
+        inline bool is_zero(void)
+        {
+            assert(0 and "not implemented");
+            return 0;
+        }
+
+        TARGET("sse4")
+        inline u64_t to_bitmask(void)
+        {
+            return _mm_movemask_epi8(lo);
+        }
+
+         static inline u64_t countz_bitmask(const mask_t m)
+          {
+               return bits::tzcnt(m);
+          }
+
+        template<u8_t a, u8_t b>
+        TARGET("sse4")
+        inline simdv cmpgt_lt(u8_t _aa=0, u8_t _bb=0)
+        {
+            if constexpr (setup::debug)
+                assert(a < 0x80 and b < 0x80);
+
+            __m128i x = _mm_set1_epi8(a);
+            __m128i y = _mm_set1_epi8(b);
+            return _mm_and_si128(_mm_cmpgt_epi8(lo, x), _mm_cmplt_epi8(lo, y));
+        }
+
+        template<u8_t a=0, u8_t b=0>
+        TARGET("sse4")
+        inline simdv cmpngt_lt(u8_t _aa=0, u8_t _bb=0)
+        {
+            if constexpr (setup::debug)
+                assert(a < 0x80 and b < 0x80);
+                
+            __m128i x = _mm_set1_epi8(a);
+            __m128i y = _mm_set1_epi8(b);
+            return _mm_or_si128(_mm_cmplt_epi8(lo, x), _mm_cmpgt_epi8(lo, y));
+        }
+    };
+
+    template<>
     struct simdv<32>
     {
         static constexpr int bitpos = 1;
@@ -37,6 +95,36 @@ namespace httpvo::simd
           {
                return bits::tzcnt(m);
           }
+
+        template<u8_t a, u8_t b>
+        TARGET("sse4")
+        inline simdv cmpgt_lt(u8_t _aa=0, u8_t _bb=0)
+        {
+            if constexpr (setup::debug)
+                assert(a < 0x80 and b < 0x80);
+
+            __m128i x = _mm_set1_epi8(a);
+            __m128i y = _mm_set1_epi8(b);
+            return {
+                _mm_and_si128(_mm_cmpgt_epi8(lo, x), _mm_cmplt_epi8(lo, y)),
+                _mm_and_si128(_mm_cmpgt_epi8(hi, x), _mm_cmplt_epi8(hi, y)),
+            };
+        }
+
+        template<u8_t a=0, u8_t b=0>
+        TARGET("sse4")
+        inline simdv cmpngt_lt(u8_t _aa=0, u8_t _bb=0)
+        {
+            if constexpr (setup::debug)
+                assert(a < 0x80 and b < 0x80);
+
+            __m128i x = _mm_set1_epi8(a);
+            __m128i y = _mm_set1_epi8(b);
+            return {
+                _mm_or_si128(_mm_cmplt_epi8(lo, x), _mm_cmpgt_epi8(lo, y)),
+                _mm_or_si128(_mm_cmplt_epi8(hi, x), _mm_cmpgt_epi8(hi, y)),
+            };
+        }
 
         TARGET("sse4")
         static inline simdv load(void *b)
@@ -116,28 +204,6 @@ namespace httpvo::simd
         }
 
         TARGET("sse4")
-        static inline simdv cmpgt_lt(const simdv& v, u8_t a, u8_t b)
-        {
-            __m128i x = _mm_set1_epi8(a);
-            __m128i y = _mm_set1_epi8(b);
-            return {
-                _mm_and_si128(_mm_cmpgt_epi8(v.lo, x), _mm_cmplt_epi8(v.lo, y)),
-                _mm_and_si128(_mm_cmpgt_epi8(v.lo, x), _mm_cmplt_epi8(v.lo, y)),
-            };
-        }
-
-        template<u8_t a=0, u8_t b=0>
-        static inline simdv cmpngt_lt(const simdv& v, u8_t _aa=0, u8_t _bb=0)
-        {
-            __m128i x = _mm_set1_epi8(a);
-            __m128i y = _mm_set1_epi8(b);
-            return {
-                _mm_or_si128(_mm_cmplt_epi8(v.lo, x), _mm_cmpgt_epi8(v.lo, y)),
-                _mm_or_si128(_mm_cmplt_epi8(v.lo, x), _mm_cmpgt_epi8(v.lo, y)),
-            };
-        }
-
-        TARGET("sse4")
         static inline simdv gt_and_lt(const simdv& u, const simdv& v, const simdv& w)
         {
             return {
@@ -180,14 +246,10 @@ namespace httpvo::simd
         }
     };
 
+#    ifndef HTTPVO_NO_64B
     template<>
-    alignas(64) struct simdv<64>
+    struct simdv<64>
     {
-        static constexpr int   spec = SSE4;
-        static constexpr int   size = 64;
-        static constexpr u64_t msb  = constant::msb_64;
-        static constexpr u64_t msb3 = constant::msb3_32;
-    
         simdv<32> lo, hi;
 
         TARGET("sse4")
@@ -326,5 +388,6 @@ namespace httpvo::simd
                     simdv<32>::shuffle(u.hi, v.hi)};
         }
     };
+#   endif // HTTPVO_NO_64B
 }
 #endif // HTTPVO_SIMD_WESTMERE_HPP

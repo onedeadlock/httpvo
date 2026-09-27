@@ -6,19 +6,14 @@
 #include "include/bits.hpp"
 #include "include/reqline.hpp"
 #include "common/common.hpp"
-#if HAVE__SSE2__
+#if HTTPVO_HAVE__SSE2__
 #    include "simd/westmere/implementation.hpp"
 #else
 #    include "simd/implementation.hpp"
 #endif
+
 namespace httpvo::Implementation
 {
-    constexpr int COMPLETE = 0;
-    constexpr int EXPECT_DATA = 1;
-
-    bool http_1 = true;
-    bool done   = true;
-
     struct _Status
     {
         int status = 0;
@@ -244,7 +239,7 @@ namespace httpvo::Implementation
         }
 
         template<simd::VWidth N, bool ISTRAIL>
-        _Status scparse_header_line(u8_t *, ReqLine&, std::size_t, std::size_t, u64_t, u64_t);
+        _Status scparse_header_line(u8_t *, u8_t *, const std::size_t, ReqLine&, simd::mask_t, u64_t);
     private:
         // header line (version, method, version, status, message)
         ReqLine reqline;
@@ -271,5 +266,5 @@ namespace httpvo::Implementation
             return stat < 0;
         }
     };
-};
+}
 #endif //IMPLEMENTATION_HPP

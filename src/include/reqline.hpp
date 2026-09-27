@@ -1,7 +1,7 @@
 #ifndef HTTPVO_REQLINE_HPP
 #define HTTPVO_REQLINE_HPP
 #include "definition.hpp"
-#include "../common/common.hpp"
+#include "../simd/westmere/implementation.hpp"
 
 namespace httpvo
 {
@@ -100,10 +100,8 @@ namespace httpvo
 
         inline int add_len(const std::size_t len)
         {
-            const u8_t x = st;
-            st += i;
-            req[x] += len;
-            return st != end;
+            req[st] += len;
+            return (st += i) != end;
         }
 
         inline int minor_version(void)
@@ -118,20 +116,27 @@ namespace httpvo
 
         inline int version_is_http_1_mask(u64_t v)
         {
+            if constexpr (not setup::little_endian)
+            {
+                // TODO: Handle Big Endianess
+                if constexpr (setup::debug)
+                    std::cerr << "<" << __FILE__ << ":" << __func__ << ":" << __LINE__ << "> " << "Warn fallback - BIG ENDIAN" << std::endl;
+                return version_is_http_1_rd(reinterpret_cast<const u8_t *>(&v));
+            }
             return not ((v & 0x00ffffffffffffffULL) ^ 0x002e312f50545448ULL);
         }
 
-        inline bool version_is_http_1_rd(u8_t *b)
+        inline bool version_is_http_1_rd(const u8_t * const b)
         {
             return !((b[0] ^ '\x48') | (b[1] ^ '\x54') | (b[2] ^ '\x54') | (b[3] ^ '\x50')) and !((b[4] ^ '\x2f') | (b[5] ^ '\x31') | (b[6] ^ '\x2e'));
         }
 
-        inline bool version_is_http_1(u8_t *b)
+        inline bool version_is_http_1(const u8_t * const b)
         {
-            if constexpr (OPTIMIZE_FOR_MOST_CASE)
-                return version_is_http_1_mask(common::_load_u64(b)) and set_minor_version(b[7]);
+            if constexpr (setup::optimize_for_most_case)
+                return version_is_http_1_mask(simd::simdv<8>::load(b)) and set_minor_version(b[7]);
             if (std::uintptr_t(b) & (8 - 1))
-                return version_is_http_1_mask(reinterpret_cast<u64_t *>(b)[0]) and set_minor_version(b[7]);
+                return version_is_http_1_mask(reinterpret_cast<const u64_t *>(b)[0]) and set_minor_version(b[7]);
             return version_is_http_1_rd(b) and set_minor_version(b[7]);
         }
 
@@ -140,9 +145,9 @@ namespace httpvo
             return version_size() == required_version_size;
         }
 
-        inline int set_version(u8_t *b)
+        inline int set_version(const void * const b)
         {
-            return is_expected_version_size() and version_is_http_1(b + start_of_version());
+            return is_expected_version_size() and version_is_http_1(reinterpret_cast<const u8_t * const>(b) + start_of_version());
         }
     };
 }

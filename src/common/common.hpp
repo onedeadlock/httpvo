@@ -20,7 +20,7 @@ namespace httpvo::common
         if (std::uintptr_t(b) & (4 - 1))
             return reinterpret_cast<u32_t *>(b)[0];
         u32_t v;
-        __builtin_memcpy(&v, b, 4);
+        httpvo_memcopy(&v, b, 4);
         return v;
     }
 
@@ -32,7 +32,7 @@ namespace httpvo::common
         return reinterpret_cast<u64_t *>(b)[0];
         #endif
         u64_t v;
-        __builtin_memcpy(&v, b, 8);
+        httpvo_memcopy(&v, b, 8);
         return v;
     }
 
@@ -155,7 +155,7 @@ namespace httpvo::common
     inline bool is_valid_name_token_(u8_t *b)
     {
         auto &x = tables::tchar_map;
-        if constexpr (OPTIMIZE_FOR_MOST_CASE)
+        if constexpr (setup::optimize_for_most_case)
         {
             return x[b[0]] & x[b[1]] & x[b[2]] & x[b[3]] &
                    x[b[4]] & x[b[5]] & x[b[6]] & x[b[7]];
@@ -178,7 +178,7 @@ namespace httpvo::common
     make_flat inline bool is_valid_name_token(void *b)
     {
         // validate 8 bytes against the allowed token characters in header names
-        if constexpr (OPTIMIZE_FOR_MOST_CASE and not NO_VECTORIZE)
+        if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
         {
             // Most tokens are a-z, A-Z, 0-9 or -
             u64_t v;
@@ -191,7 +191,7 @@ namespace httpvo::common
 
     make_flat inline bool is_valid_name(u8_t *b, std::size_t& len)
     {
-        if constexpr (not STRICT_HTTP or IGNORE_LEADING_SP)
+        if constexpr (not setup::no_leading_space)
             len -= is_whitespace(b[len - 1]);
         const u8_t *end = b + (len & ~(constant::int_size - 1));
         for (; b != end and is_valid_name_token<0>(b); b += 8) [[likely]] pass();

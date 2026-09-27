@@ -1,43 +1,31 @@
 #ifndef HTTPVO_BITS_HPP
 #define HTTPVO_BITS_HPP
+#if   HTTPVO_HAVE_MSVC__
+#   include <intrin.h>
+#elif HTTPVO_GNUC_COMPAT__
+#include <x86intrin.h>
+#endif
 #include "definition.hpp"
 #include "constants.hpp"
-#if   __HAVE_MSVC__
-#   include <intrin.h>
-#elif __HAVE_GNUC__
-//#include <x86intrin.h>
-#endif
 
 namespace httpvo::bits
 {
-#if defined(__cplusplus) && __cplusplus >= 202002L
-    template <typename T = u64_t>
-    concept _32_64_uint_type = requires {
-    std::is_integral_v<T> and !std::is_signed_v<T>; sizeof(T) >= 4; };
-#else
-#    define _32_64_uint_type typename
-#endif
-
-    template <_32_64_uint_type T, _32_64_uint_type Y>
-    inline T andnot(T x, Y y)
+    inline u64_t andnot(u64_t x, u64_t y)
     {
         return x & ~y;
     }
 
-    template <_32_64_uint_type T>
-    inline T lsb(T x)
+    inline u64_t lsb(u64_t x)
     {
         return x & -x;
     }
 
-    template <_32_64_uint_type T>
-    inline T ltrim(T x)
+    inline u64_t ltrim(u64_t x)
     {
         return andnot(x, x << 1);
     }
 
-    template <_32_64_uint_type T>
-    inline T rtrim(T x)
+    inline u64_t rtrim(u64_t x)
     {
         return andnot(x, x >> 1);
     }
@@ -52,55 +40,38 @@ namespace httpvo::bits
         return andnot(x, x >> 8);
     }
 
-    template <_32_64_uint_type T>
-    inline T tzmask(T x)
+    inline u64_t tzmask(u64_t x)
     {
         return andnot(x - 1, x);
     }
 
-    template <_32_64_uint_type T>
-    inline T blsmask(T x)
+    inline u64_t blsmask(u64_t x)
     {
         return x ^ (x - 1);
     }
 
-    template <_32_64_uint_type T>
-    inline T blsr(T x)
+    inline u64_t blsr(u64_t x)
     {
         return x & (x - 1);
     }
 
-    template <_32_64_uint_type T>
-    inline T blsfill(T x)
+    inline u64_t blsfill(u64_t x)
     {
         return x | (x - 1);
     }
 
-    template <_32_64_uint_type T>
-    inline T xlsfill(T x)
+    inline u64_t xlsfill(u64_t x)
     {
         return x ^ -x;
     }
 
-    template <_32_64_uint_type T>
-    T tzcnt(T x)
+    u64_t tzcnt(u64_t x)
     {
-        if constexpr (sizeof (T) == 32)
-        {
-#if defined(_tzcnt_u32) || __HAVE_MSVC__
-            return _tzcnt_u32(x);
-#elif __HAVE_GNUC__
-        return __builtin_ctzl(U32(x));
-#else
-            x |= x >> 1; x |= x >> 2;
-            x |= x >> 4; x |= x >> 8;
-            return constant::DeBruijn32_seq[((x | x >> 16) * constant::DeBruijn32_const) >> 24];
-#endif
-        }
-
-#if defined(_tzcnt_u64) || __HAVE_MSVC__
+        if constexpr (setup::debug)
+            assert(x > 0);
+#if defined(_tzcnt_u64)
             return _tzcnt_u64(x);
-#elif __HAVE_GNUC__
+#elif HTTPVO_GNUC_COMPAT__
         return __builtin_ctzll(x);
 #else
             x |= x >> 1;  x |= x >> 2;
@@ -109,6 +80,5 @@ namespace httpvo::bits
             return constant::DeBruijn64_seq[(x * constant::DeBruijn64_const) >> 58];
 #endif
     }
-#undef _32_64_uint_type
 }
 #endif // HTTPVO_BITS_H
