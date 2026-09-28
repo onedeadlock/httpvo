@@ -89,7 +89,7 @@ namespace httpvo::Implementation
                 tsp = 0;
                 continue;
             }
-            for (; out_mask; out_mask = bits::clear_lowest_set_bit(out_mask))
+            for (; out_mask; out_mask = bits::clear_least_set_bit(out_mask))
             {
                 const unsigned int offset = simd::simdv<N>::countz_bitmask(out_mask);
                 u8_t c = b_run[offset];
@@ -99,12 +99,12 @@ namespace httpvo::Implementation
                     {
                         if constexpr (setup::no_multispace)
                             return status::unwanted_whitespace;
-                        tsp = bits::lowest_set_bit(out_mask) << simd::simdv<N>::bitpos;
+                        tsp = bits::least_set_bit(out_mask) << simd::simdv<N>::bitpos;
                         continue;
                     }
-                    if (not out.add_len(static_cast<const std::size_t>(b_run - b) + offset)) [[unlikely]]
+                    if (not out.advance(static_cast<const std::size_t>(b_run - b) + offset)) [[unlikely]]
                         return -1;
-                    tsp = bits::lowest_set_bit(out_mask) << simd::simdv<N>::bitpos;
+                    tsp = bits::least_set_bit(out_mask) << simd::simdv<N>::bitpos;
                     continue;
                 }
                 if (c == CR)
@@ -115,7 +115,7 @@ namespace httpvo::Implementation
                 }
                 if (c == LF)
                 {
-                    out.add_len(static_cast<const std::size_t>(b_run - b) + offset);
+                    out.advance(static_cast<const std::size_t>(b_run - b) + offset);
                     return -out.set_version(b);
                 }
                 return status::unexpected_char;

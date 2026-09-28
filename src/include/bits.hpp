@@ -15,12 +15,12 @@ namespace httpvo::bits
         return x & ~y;
     }
 
-     __attribute__((const)) inline u64_t lowest_set_bit(const u64_t x)
+     __attribute__((const)) inline u64_t least_set_bit(const u64_t x)
     {
         return x & -x; // blsi
     }
 
-     __attribute__((const)) inline u64_t clear_lowest_set_bit(const u64_t x)
+     __attribute__((const)) inline u64_t clear_least_set_bit(const u64_t x)
     {
         return x & (x - 1); // blsr
     }
