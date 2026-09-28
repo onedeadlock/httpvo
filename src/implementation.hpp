@@ -2,6 +2,7 @@
 #define HTTPVO_IMPLEMENTATION_HPP
 
 #include "include/definition.hpp"
+#include "include/status.hpp"
 #include "include/constants.hpp"
 #include "include/bits.hpp"
 #include "include/reqline.hpp"
@@ -14,61 +15,7 @@
 
 namespace httpvo::Implementation
 {
-    struct _Status
-    {
-        int status = 0;
-        int code   = 0;
-
-        inline constexpr _Status(int s) : status{s} {}
-        inline constexpr _Status(int s, int e) : status{s}, code{e} {}
-
-        inline bool operator==(int s) const
-        {
-            return status == s;
-        }
-
-        inline bool operator==(const _Status &s) const
-        {
-            return status == s.status;
-        }
-
-        inline bool operator!=(int s) const
-        {
-            return status != s;
-        }
-
-        inline bool operator!=(const _Status &s) const
-        {
-            return status != s.status;
-        }
-
-        inline bool operator not(void) const
-        {
-            return not status;
-        }
-
-        inline bool operator>(int s) const
-        {
-            return status > s;
-        }
-
-        inline bool operator<(int s) const
-        {
-            return status < s;
-        }
-
-        inline bool is_error(void) const
-        {
-            return code < 0;
-        }
-
-        inline int error_code(void) const
-        {
-            return code;
-        }
-    };
-
-    template <typename T, T N>
+     template <typename T, T N>
     struct req
     {
         static_assert(std::is_integral_v<T> and (sizeof(T) < sizeof(u64_t)) and N > 0);
@@ -239,7 +186,10 @@ namespace httpvo::Implementation
         }
 
         template<simd::VWidth N, bool ISTRAIL>
-        _Status scparse_header_line(u8_t *, u8_t *, const std::size_t, ReqLine&, simd::mask_t, u64_t);
+        status parse_line(u8_t *, u8_t *, ReqLine&, const std::size_t, const simd::mask_t, u64_t);
+        template<simd::VWidth N, bool ISTRAIL>
+        status parse_header(void *in, u8_t *b_run, ReqLine& out, const std::size_t, const std::size_t, const std::size_t);
+
     private:
         // header line (version, method, version, status, message)
         ReqLine reqline;

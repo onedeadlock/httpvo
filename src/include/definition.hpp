@@ -79,7 +79,7 @@
 #endif
 
 #ifdef HTTPVO_UNALIGNED_ACCESS
-#    HTTPVO_HAVE_UNALIGNED__ 1
+#    HTTPVO_HAVE_UNALIGNED 1
 #endif
 
 #if !defined(HTTPVO_UNALIGNED_ACCESS) && (defined(__x86_64__) || defined(__amd64__) || defined(__aarch64__))
@@ -143,7 +143,7 @@
 #endif
 #endif
 
-#if   HTTPVO_HAVE_GNUC__
+#if   HTTPVO_GNUC_COMPAT__
 #    define inline    __attribute__((__always_inline__)) inline
 #    define make_flat __attribute__((flatten))
 #elif HTTPVO_HAVE_MSVC__
@@ -154,7 +154,7 @@
 #    define make_flat 
 #endif
 
-#if HTTPVO_HAVE_GNUC__
+#if HTTPVO_GNUC_COMPAT__
 #    define TARGET(str) __attribute__((target(str)))
 #else
 #    define TARGET(str) 
@@ -164,6 +164,10 @@
 #    define httpvo_memcopy __builtin_memcpy
 #else
 #    define httpvo_memcopy memcpy 
+#endif
+
+#if !HTTPVO_GNUC_COMPAT__
+#    define __attribute__()
 #endif
 
 #define U32(x)  static_cast<const u32_t>(x)

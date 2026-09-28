@@ -9,11 +9,11 @@ int main(void)
 
     req.request();
 
-    httpvo::Implementation::_Status stat = parser.scparse_header_line<8>((httpvo::u8_t *)request, (httpvo::u8_t *)request, len, req, httpvo::constant::cff, 0);
+    httpvo::status stat = parser.parse_line<0>((httpvo::u8_t *)request, (httpvo::u8_t *)request, req, len, httpvo::constant::cff, 0);
 
     if (stat < 0)
     {
-        std::cerr << stat.error_code() << " " << stat.status << " parsing error" << std::endl;
+        std::cerr << stat.error_code() << " " << stat.stat << " parsing error" << std::endl;
         return -1;
     }
 

@@ -104,6 +104,12 @@ namespace httpvo
             return (st += i) != end;
         }
 
+        inline int advance(const std::size_t len)
+        {
+            req[st] += len;
+            return (st += i) != end;
+        }
+
         inline int minor_version(void)
         {
             return vs;
@@ -133,7 +139,7 @@ namespace httpvo
 
         inline bool version_is_http_1(const u8_t * const b)
         {
-            if constexpr (setup::optimize_for_most_case)
+            if constexpr (setup::optimize_for_most_case or setup::support_unaligned)
                 return version_is_http_1_mask(simd::simdv<8>::load(b)) and set_minor_version(b[7]);
             if (std::uintptr_t(b) & (8 - 1))
                 return version_is_http_1_mask(reinterpret_cast<const u64_t *>(b)[0]) and set_minor_version(b[7]);
@@ -147,7 +153,7 @@ namespace httpvo
 
         inline int set_version(const void * const b)
         {
-            return is_expected_version_size() and version_is_http_1(reinterpret_cast<const u8_t * const>(b) + start_of_version());
+            return not (is_expected_version_size() and version_is_http_1(reinterpret_cast<const u8_t * const>(b) + start_of_version()));
         }
     };
 }

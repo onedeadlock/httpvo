@@ -10,14 +10,19 @@
 
 namespace httpvo::bits
 {
-    inline u64_t andnot(u64_t x, u64_t y)
+    __attribute__((const)) inline u64_t andnot(const u64_t x, const u64_t y)
     {
         return x & ~y;
     }
 
-    inline u64_t lsb(u64_t x)
+     __attribute__((const)) inline u64_t lowest_set_bit(const u64_t x)
     {
-        return x & -x;
+        return x & -x; // blsi
+    }
+
+     __attribute__((const)) inline u64_t clear_lowest_set_bit(const u64_t x)
+    {
+        return x & (x - 1); // blsr
     }
 
     inline u64_t ltrim(u64_t x)
@@ -50,11 +55,6 @@ namespace httpvo::bits
         return x ^ (x - 1);
     }
 
-    inline u64_t blsr(u64_t x)
-    {
-        return x & (x - 1);
-    }
-
     inline u64_t blsfill(u64_t x)
     {
         return x | (x - 1);
@@ -81,4 +81,4 @@ namespace httpvo::bits
 #endif
     }
 }
-#endif // HTTPVO_BITS_H
+#endif // HTTPVO_BITS_HPP
