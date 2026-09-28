@@ -45,4 +45,34 @@ if (auto cr_lf = (lf | cr) & 0xe000000000000000ull) [[unlikely]]
 
 {1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0}
 
+
+EFFICIENT HEADER PARSING
+
+1. 32/64 BYTES TAPE
+
+- build a 64 byte tape
+- classify bytes: tchar found in header name
+- save (tape: header names)
+- eliminate less than -1 (0x80 upward)
+- save (tape: header values)
+- 
+- walk tape (header names)
+- invert mask
+- move to first none tchar
+- expect colon first in  else reject (no handling for single wsp before colon yet)
+- add len tzcnt // everything here is correct
+
+- walk tape (header names)
+- mask out (header names bits)
+- expect a tchar or space
+- invert
+- while trim space
+-
+- mask out trailing space
+- move to next bad char, expect a space or cr/lf, else reject
+
+
+- exhaust tape
+
+2. FIND NAME AND VALUE INDEPENDENTLY
 ```

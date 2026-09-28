@@ -79,7 +79,7 @@ namespace httpvo::Implementation
 
         static_assert(!(N & (N - 1))); // N must be a power of 2
         const u8_t * const end  = b + run_size;
-        const u8_t * const stop = ISTRAIL ? b + (run_size & ~(N - 1)) : end;
+        const u8_t * const stop = !ISTRAIL ? b + (run_size & ~(N - 1)) : end;
         for (; b_run < stop; b_run += N)
         {
             simd::simdv<N> v{b_run};
@@ -122,7 +122,7 @@ namespace httpvo::Implementation
             }
             tsp = bool(tsp) << (simd::simdv<N>::bitpos - 1);
         }
-        if constexpr (ISTRAIL)
+        if constexpr (not ISTRAIL)
         {
             if (run_size > (N - 1))
             {
@@ -144,7 +144,7 @@ namespace httpvo::Implementation
     {
         static_assert(!(N & (N - 1))); // N must be a power of 2
         u8_t *end = reinterpret_cast<u8_t>(b + run_size);
-        const u8_t * const stop = ISTRAIL ? b + (run_size & ~(N - 1)) : end;
+        const u8_t * const stop = !ISTRAIL ? b + (run_size & ~(N - 1)) : end;
         const simd::simdv<N> v_lf = simd::simdv<N>::splat('\xa');
         const simd::simdv<N> v_cr = simd::simdv<N>::splat('\xd');
 
@@ -160,7 +160,7 @@ namespace httpvo::Implementation
             // maybe the end of us parsing this buffer (eop)
             if (auto eop = crlf & crlf >> 2)
                 return 0;
-            
+
             b_run += N; // next run
 
             // or maybe eop is incomplete; cases like cr, crlf, crlfcr
@@ -181,6 +181,41 @@ namespace httpvo::Implementation
             }
         }
         return 0;
+    }
+
+    template<simd::VWidth N=8, bool ISTRAIL=0>
+    inline status parse_32_64B(void * const b, u8_t *b_run, ReqLine& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    {
+        static_assert(N > (32 - 1) or N > (64 - 1)); // N must be 32 or 64
+        u8_t *end = reinterpret_cast<u8_t>(b + run_size);
+        const u8_t * const stop = ISTRAIL ? b + (run_size & ~(N - 1)) : end;
+
+        simd::simdv<N> hi = simdv<N>::splat(0x80);
+        while (true)
+        {
+            simd::simdv<N> v(b_run);
+            simd::simdv<N> name_class  = v.compare_table(b_run, CLASS);
+            simd::simdv<N> value_class = simd::simdv<N>::and(name_class, simd::simdv<N>::not(v.cmpeq(hi)));
+
+            mask_t name_mask = name_class.to_bitmask();
+            mask_t col = bits::tzcnt(name_mask);
+            if (b[col] != COL) [[unlikely]]
+            {
+                if constexpr (not setup::no_leading_space)
+                    if (b[col] == SP and b[col + 1] == COL)
+                        col -= 1; // TODO: do not modify col
+                return -1;
+            }
+            mask_t value_mask = value_class.to_bitmask();
+            // TODO: first, assume all is correct, trim whitespace, then check
+            // run value mask tape
+            
+            b_run += N; // next run
+            if (b_run >= stop) [[unlikely]]
+            {
+                // TODO: handle trailing bytes
+            }
+        }
     }
 }
 
