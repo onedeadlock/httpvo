@@ -139,6 +139,7 @@ namespace httpvo::Implementation
         return parse_trailing_chars(b, out, tsp, run_size, b_run - b);
     }
 
+    // see table generation scripts and comments on test/scripts/
     alignas(64) static constexpr int NON_TCHAR_CLASS_LUT[128]{
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  16 (4bit low nibble)
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  32 (4bit low nibble)
@@ -146,31 +147,45 @@ namespace httpvo::Implementation
         58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // high 32 (4bit high nibble)
     };
 
+    alignas(64) static constexpr int CONTROL_CHAR_CLASS_LUT[128]{
+        02, 02, 02, 02, 02, 02, 02, 02, 02, 02, 01, 00, 00, 00, 00, 03,
+        02, 02, 02, 02, 02, 02, 02, 02, 02, 02, 01, 00, 00, 00, 00, 03,
+        01, 00, 127, 127, 127, 127, 127, 02, 127, 127, 127, 127, 127, 127, 127, 127,
+        01, 00, 127, 127, 127, 127, 127, 02, 127, 127, 127, 127, 127, 127, 127, 127,
+    };
+
     template<simd::VWidth N>
     struct _const
     {
         static_assert(N >= 16 and (N & (N - 1)));
         const simd::simdv<N> HIx80    = simd::simdv<N>::splat(0x80);
+        const simd::simdv<N> LO_NIB   = simd::simdv<N>::splat(0x0f);
         const simd::simdv<N> HTAB     = simd::simdv<N>::splat(0x09);
         const simd::simdv<N> DEL      = simd::simdv<N>::splat(0x7f);
         const simd::simdv<N> CTRL_MAX = simd::simdv<N>::splat(0x1f);
         const simd::simdv<N> ZERO     = simd::simdv<N>::setzero();
         const simd::simdv<N> NON_TCHAR_LO{reinterpret_cast<const void *>(NON_TCHAR_CLASS_LUT + 0)};
         const simd::simdv<N> NON_TCHAR_HI{reinterpret_cast<const void *>(NON_TCHAR_CLASS_LUT + (N == 16 ? 16 : 32))};
+        const simd::simdv<N> CTRL_LO     {reinterpret_cast<const void *>(CONTROL_CHAR_CLASS_LUT + 0)};
+        const simd::simdv<N> CTRL_HI     {reinterpret_cast<const void *>(CONTROL_CHAR_CLASS_LUT + (N == 16 ? 16 : 32))};
+
     };
 
     template<simd::VWidth N>
     inline simd::mask_t is_control_char(const simd::simdv<N>& v)
     {
+        #if 0 // THIS IS SLOW
         simd::simdv<N> control_char = v <= _const<N>::CTRL_MAX; // all control characters 0x00 - 0x1F
         // excludle HTAB and include DEL char
         return control_char.andnot(v == _const<N>::HTAB) | (v == _const<N>::DEL);
+        #endif
+        return v.shuf_table(CTRL_LO) > v.shuf_table(CTRL_HI)
     }
 
     template<simd::VWidth N>
     inline simd::mask_t is_non_tchar(const simd::simdv<N>& v)
      {
-         const simd::simdv<N> maybe_non_tchar = v.shuf_table(_const<N>::NON_TCHAR_CLASS_LO) & (v >> 4).shuf_table(_const<N>::NON_TCHAR_CLASS_LO);
+         const simd::simdv<N> maybe_non_tchar = v.shuf_table(_const<N>::NON_TCHAR_LO) & ((v >> 4) & _const<N>::LO_NIB).shuf_table(_const<N>::NON_TCHAR_HI);
          return maybe_non_tchar == _const<N>::ZERO;
      }
 
