@@ -159,10 +159,11 @@ namespace httpvo::Implementation
     struct _const
     {
         static_assert(N >= 16 and (N & (N - 1)));
-        const simd::simdv<N> HIx80    = simd::simdv<N>::splat(0x80);
-        const simd::simdv<N> LO_NIB   = simd::simdv<N>::splat(0x0f);
+#       if DEBUG_CHECK
         const simd::simdv<N> HTAB     = simd::simdv<N>::splat(0x09);
         const simd::simdv<N> DEL      = simd::simdv<N>::splat(0x7f);
+#       endif
+        const simd::simdv<N> LO_NIB   = simd::simdv<N>::splat(0x0f);
         const simd::simdv<N> CTRL_MAX = simd::simdv<N>::splat(0x1f);
         const simd::simdv<N> ZERO     = simd::simdv<N>::setzero();
         const simd::simdv<N> NON_TCHAR_LO{reinterpret_cast<const void *>(NON_TCHAR_CLASS_LUT + 0)};
@@ -175,12 +176,13 @@ namespace httpvo::Implementation
     template<simd::VWidth N>
     inline simd::mask_t is_control_char(const simd::simdv<N>& v)
     {
-        #if 0 // THIS IS SLOW
+        #if DEBUG_CHECK // THIS IS SLOW
         simd::simdv<N> control_char = v <= _const<N>::CTRL_MAX; // all control characters 0x00 - 0x1F
         // excludle HTAB and include DEL char
         return control_char.andnot(v == _const<N>::HTAB) | (v == _const<N>::DEL);
         #endif
-        return v.shuf_table(CTRL_LO) > v.shuf_table(CTRL_HI)
+        // since the control bytes overlap, we can reduce to a precomputed comparison. see /test/scripts/generate_shuffle_table2.py for my comments
+        return v.shuf_table(CTRL_LO) > ((v >> 4) & _const<N>::LO_NIB).shuf_table(CTRL_HI)
     }
 
     template<simd::VWidth N>
