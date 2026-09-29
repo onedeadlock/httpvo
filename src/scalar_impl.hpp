@@ -183,32 +183,53 @@ namespace httpvo::Implementation
         return 0;
     }
 
+    alignas(64) static constexpr int CLASS_LUT[128]{
+        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  16 (4bit low nibble)
+        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  32 (4bit low nibble)
+        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // high 48 (4bit low nibble)
+        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // high 64 (4bit low nibble)
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // low  16 (4bit high nibble)
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // low  32 (4bit high nibble)
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // high 48 (4bit high nibble)
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28  // high 64 (4bit high nibble)
+    };
+
     template<simd::VWidth N=8, bool ISTRAIL=0>
-    inline status parse_32_64B(void * const b, u8_t *b_run, ReqLine& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    inline status parse_32_64B(void * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
         static_assert(N > (32 - 1) or N > (64 - 1)); // N must be 32 or 64
+        static constexpr u8_t COL = '\x3b';
+
         u8_t *end = reinterpret_cast<u8_t>(b + run_size);
         const u8_t * const stop = ISTRAIL ? b + (run_size & ~(N - 1)) : end;
 
-        simd::simdv<N> hi = simdv<N>::splat(0x80);
+        const simd::simdv<N> hi   = simd::simdv<N>::splat(0x80);
+        const simd::simdv<N> zero = simd::simdv<N>::setzero();
+        const simd::simdv<N> cls_tab_lo{CLASS_LUT + 0};
+        const simd::simdv<N> cls_tab_hi{CLASS_LUT + N};
+        
         while (true)
         {
             simd::simdv<N> v(b_run);
-            simd::simdv<N> name_class  = v.compare_table(b_run, CLASS);
-            simd::simdv<N> value_class = simd::simdv<N>::and(name_class, simd::simdv<N>::not(v.cmpeq(hi)));
+            simd::simdv<N> cls = v.shuf_table(b_run, cls_tab_lo) & v.shuf_table(v << 4, cls_tab_lo);
+            simd::simdv<N> name_cls  = cls > zero;
 
-            mask_t name_mask = name_class.to_bitmask();
-            mask_t col = bits::tzcnt(name_mask);
-            if (b[col] != COL) [[unlikely]]
+            simd::mask_t name_mask = ~name_cls.to_bitmask();
+            simd::mask_t col = bits::tzcnt(name_mask);
+            if (b_run[col] != COL) [[unlikely]]
             {
                 if constexpr (not setup::no_leading_space)
-                    if (b[col] == SP and b[col + 1] == COL)
-                        col -= 1; // TODO: do not modify col
+                    if (common::is_whitespace(b_run[col]) and b_run[col + 1] == COL)
+                    {
+                        name_mask = bits::clear_least_set_bit(name_mask);
+                        col -= 1;
+                    }
                 return -1;
             }
-            mask_t value_mask = value_class.to_bitmask();
-            // TODO: first, assume all is correct, trim whitespace, then check
-            // run value mask tape
+            out.name = col;
+            // TODO
+            simd::mask_t value_mask = bits::tzmask(name_mask);
+            simd::mask_t cr = bits::tzcnt(val_mask);
             
             b_run += N; // next run
             if (b_run >= stop) [[unlikely]]

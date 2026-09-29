@@ -6,6 +6,7 @@
 #include "include/constants.hpp"
 #include "include/bits.hpp"
 #include "include/reqline.hpp"
+#include "include/headerline.hpp"
 #include "common/common.hpp"
 #if HTTPVO_HAVE__SSE2__
 #    include "simd/westmere/implementation.hpp"

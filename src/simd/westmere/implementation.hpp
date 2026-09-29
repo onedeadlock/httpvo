@@ -60,6 +60,12 @@ namespace httpvo::simd
             __m128i y = _mm_set1_epi8(b);
             return _mm_or_si128(_mm_cmplt_epi8(lo, x), _mm_cmpgt_epi8(lo, y));
         }
+
+        TARGET("sse4")
+        inline simdv shuf_table(const simdv& tab)
+        {
+            return _mm_shuffle_epi8(lo, tab.lo);
+        }
     };
 
     template<>
@@ -124,6 +130,38 @@ namespace httpvo::simd
                 _mm_or_si128(_mm_cmplt_epi8(lo, x), _mm_cmpgt_epi8(lo, y)),
                 _mm_or_si128(_mm_cmplt_epi8(hi, x), _mm_cmpgt_epi8(hi, y)),
             };
+        }
+
+        TARGET("sse4")
+        inline simdv shuf_table(const simdv& tab)
+        {
+            return {_mm_shuffle_epi8(lo, tab.lo), _mm_shuffle_epi8(hi, tab.hi)};
+        }
+
+        inline simdv operator&(const simdv& v)
+        {
+            return {_mm_and_si128(lo, v.lo), _mm_and_si128(hi, v.hi)};
+        }
+
+        inline simdv operator<<(const int r)
+        {
+            return {_mm_srli_si128(lo, r), _mm_srli_si128(hi, r)};
+        }
+
+        inline simdv operator>(const simdv& v)
+        {
+            return {_mm_cmpgt_epi8(lo, v.lo), _mm_cmpgt_epi8(hi, v.hi)};
+        }
+
+        inline simdv andnot(const simdv& v)
+        {
+            // a & ~b
+            return {_mm_andnot_si128(v.lo, lo), _mm_andnot_si128(v.hi, hi)};
+        }
+
+        inline simdv setzero(void)
+        {
+            return {_mm_setzero_si128(), _mm_setzero_si128()};
         }
 
         TARGET("sse4")
