@@ -139,7 +139,7 @@ namespace httpvo::Implementation
         return parse_trailing_chars(b, out, tsp, run_size, b_run - b);
     }
 
-    // see table generation scripts and comments on test/scripts/
+    // see table generation scripts and comments on test/scripts/generate_shuffle_table.py
     alignas(64) static constexpr int NON_TCHAR_CLASS_LUT[128]{
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  16 (4bit low nibble)
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  32 (4bit low nibble)
@@ -147,6 +147,7 @@ namespace httpvo::Implementation
         58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // high 32 (4bit high nibble)
     };
 
+     // see table generation scripts and comments on test/scripts/generate_shuffle2_table.py
     alignas(64) static constexpr int CONTROL_CHAR_CLASS_LUT[128]{
         02, 02, 02, 02, 02, 02, 02, 02, 02, 02, 01, 00, 00, 00, 00, 03,
         02, 02, 02, 02, 02, 02, 02, 02, 02, 02, 01, 00, 00, 00, 00, 03,
