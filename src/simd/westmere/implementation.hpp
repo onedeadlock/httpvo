@@ -32,7 +32,7 @@ namespace httpvo::simd
             return _mm_movemask_epi8(lo);
         }
 
-         static inline u64_t countz_bitmask(const mask_t m)
+         static inline u64_t countzero_bitmask(const mask_t m)
           {
                return bits::tzcnt(m);
           }
@@ -66,6 +66,57 @@ namespace httpvo::simd
         {
             return _mm_shuffle_epi8(lo, tab.lo);
         }
+
+        TARGET("sse4")
+        inline simdv operator&(const simdv &v)
+        {
+            return _mm_and_si128(lo, v.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator<<(const int r)
+        {
+            return _mm_srli_si128(lo, r);
+        }
+
+        TARGET("sse4")
+        inline simdv operator|(const simdv& v)
+        {
+            return _mm_or_si128(lo, v.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator==(const simdv &v)
+        {
+            // we use an unsigned compare here
+            return _mm_cmpeq_epi8(lo, v.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator<=(const simdv &v)
+        {
+            // we use an unsigned compare here
+            return _mm_cmpeq_epi8(_mm_min_epi8(lo, v.lo), lo);
+        }
+
+        TARGET("sse4")
+        inline simdv andnot(const simdv &v)
+        {
+            // a & ~b
+            return _mm_andnot_si128(v.lo, lo);
+        }
+
+        TARGET("sse4")
+        inline simdv setzero(void)
+        {
+            return _mm_setzero_si128();
+        }
+
+        TARGET("sse4")
+        inline operator mask_t(void)
+        {
+            return _mm_movemask_epi8(lo);
+        }
     };
 
     template<>
@@ -97,7 +148,7 @@ namespace httpvo::simd
                    _mm_movemask_epi8(lo);
         }
 
-         static inline u64_t countz_bitmask(const mask_t m)
+         static inline u64_t countzero_bitmask(const mask_t m)
           {
                return bits::tzcnt(m);
           }

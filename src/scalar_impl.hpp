@@ -91,7 +91,7 @@ namespace httpvo::Implementation
             }
             for (; out_mask; out_mask = bits::clear_least_set_bit(out_mask))
             {
-                const unsigned int offset = simd::simdv<N>::countz_bitmask(out_mask);
+                const unsigned int offset = simd::simdv<N>::countzero_bitmask(out_mask);
                 u8_t c = b_run[offset];
                 if (common::is_whitespace(c)) [[likely]]
                 {
@@ -139,103 +139,66 @@ namespace httpvo::Implementation
         return parse_trailing_chars(b, out, tsp, run_size, b_run - b);
     }
 
-    template<simd::VWidth N=8, bool ISTRAIL=0>
-    inline status http::parse_header(void * const b, u8_t *b_run, ReqLine& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
-    {
-        static_assert(!(N & (N - 1))); // N must be a power of 2
-        u8_t *end = reinterpret_cast<u8_t>(b + run_size);
-        const u8_t * const stop = !ISTRAIL ? b + (run_size & ~(N - 1)) : end;
-        const simd::simdv<N> v_lf = simd::simdv<N>::splat('\xa');
-        const simd::simdv<N> v_cr = simd::simdv<N>::splat('\xd');
-
-        for (; b_run < end; )
-        {
-            simd::simdv<N> v(b_run);
-            u64_t lf   = v.cmp_eq(v, v_lf).to_bitmask();
-            u64_t cr   = v.cmp_eq(v, v_cr).to_bitmask();
-            u64_t crlf = cr & (lf << 1);
-
-            // TODO: Parse Name and Value
-
-            // maybe the end of us parsing this buffer (eop)
-            if (auto eop = crlf & crlf >> 2)
-                return 0;
-
-            b_run += N; // next run
-
-            // or maybe eop is incomplete; cases like cr, crlf, crlfcr
-            if (auto eop = (lf | cr) >> N - 3; eop > 0b100) [[unlikely]]
-            {
-                // fast fail for (cr/lf)_*Non-crlf*_(cr/lf)
-                if (eop & 0b101) [[unlikely]]
-                    return -1;
-                // the top three bits of intN in the eop mask can be 100, 110 or 111
-                // in any of the cases, tab[top_three_bits_in_eop] gives us the number of bytes we need to check
-                // also tab[tab[last_three_bits_in_eop]] gives the number of times we need to shift backward in order to read a complete crlfcrlf word
-                alignas(8) static constexpr u8_t eop_tab[8]{0, 2, 1, 0, 3, 0, 2, 1};
-                int n = eop_tab[eop];
-                if (b != end or r >= n) [[likely]]
-                    return -(reinterpret_cast<u32_t *>(b - N - eop_tab[n])[0] == 0xd0a0d0a);
-                this->n_bytes_to_complete = n;
-                return {0, status::expect_linefeed};  // we need atleast <= 3 bytes to confirm an exact eop
-            }
-        }
-        return 0;
-    }
-
-    alignas(64) static constexpr int CLASS_LUT[128]{
+    alignas(64) static constexpr int NON_TCHAR_CLASS_LUT[128]{
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  16 (4bit low nibble)
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // low  32 (4bit low nibble)
-        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // high 48 (4bit low nibble)
-        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00, // high 64 (4bit low nibble)
-        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // low  16 (4bit high nibble)
-        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // low  32 (4bit high nibble)
-        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // high 48 (4bit high nibble)
-        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28  // high 64 (4bit high nibble)
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // high 16 (4bit high nibble)
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28, // high 32 (4bit high nibble)
     };
 
-    template<simd::VWidth N=8, bool ISTRAIL=0>
-    inline status parse_32_64B(void * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    template<simd::VWidth N>
+    struct _const
     {
-        static_assert(N > (32 - 1) or N > (64 - 1)); // N must be 32 or 64
+        static_assert(N >= 16 and (N & (N - 1)));
+        const simd::simdv<N> HIx80    = simd::simdv<N>::splat(0x80);
+        const simd::simdv<N> HTAB     = simd::simdv<N>::splat(0x09);
+        const simd::simdv<N> DEL      = simd::simdv<N>::splat(0x7f);
+        const simd::simdv<N> CTRL_MAX = simd::simdv<N>::splat(0x1f);
+        const simd::simdv<N> ZERO     = simd::simdv<N>::setzero();
+        const simd::simdv<N> NON_TCHAR_LO{reinterpret_cast<const void *>(NON_TCHAR_CLASS_LUT + 0)};
+        const simd::simdv<N> NON_TCHAR_HI{reinterpret_cast<const void *>(NON_TCHAR_CLASS_LUT + (N == 16 ? 16 : 32))};
+    };
+
+    template<simd::VWidth N>
+    inline simd::mask_t is_control_char(const simd::simdv<N>& v)
+    {
+        simd::simdv<N> control_char = v <= _const<N>::CTRL_MAX; // all control characters 0x00 - 0x1F
+        // excludle HTAB and include DEL char
+        return control_char.andnot(v == _const<N>::HTAB) | (v == _const<N>::DEL);
+    }
+
+    template<simd::VWidth N>
+    inline simd::mask_t is_non_tchar(const simd::simdv<N>& v)
+     {
+         const simd::simdv<N> maybe_non_tchar = v.shuf_table(_const<N>::NON_TCHAR_CLASS_LO) & (v >> 4).shuf_table(_const<N>::NON_TCHAR_CLASS_LO);
+         return maybe_non_tchar == _const<N>::ZERO;
+     }
+
+    template<simd::VWidth N=16, bool ISTRAIL=0>
+    inline status parse_16_32B(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    {
+        static_assert(N > (16 - 1) or N > (32 - 1)); // N must be 16 or 32
         static constexpr u8_t COL = '\x3b';
 
         u8_t *end = reinterpret_cast<u8_t>(b + run_size);
-        const u8_t * const stop = ISTRAIL ? b + (run_size & ~(N - 1)) : end;
-
-        const simd::simdv<N> hi   = simd::simdv<N>::splat(0x80);
-        const simd::simdv<N> zero = simd::simdv<N>::setzero();
-        const simd::simdv<N> cls_tab_lo{CLASS_LUT + 0};
-        const simd::simdv<N> cls_tab_hi{CLASS_LUT + N};
+        const u8_t * const stop = !ISTRAIL ? b + (run_size & ~(N - 1)) : end;
         
-        while (true)
+        for (bool parsing_value = true; true; b_run += N)
         {
             simd::simdv<N> v(b_run);
-            simd::simdv<N> cls = v.shuf_table(b_run, cls_tab_lo) & v.shuf_table(v << 4, cls_tab_lo);
-            simd::simdv<N> name_cls  = cls > zero;
-
-            simd::mask_t name_mask = ~name_cls.to_bitmask();
-            simd::mask_t col = bits::tzcnt(name_mask);
-            if (b_run[col] != COL) [[unlikely]]
+            if (not parsing_value)
             {
-                if constexpr (not setup::no_leading_space)
-                    if (common::is_whitespace(b_run[col]) and b_run[col + 1] == COL)
-                    {
-                        name_mask = bits::clear_least_set_bit(name_mask);
-                        col -= 1;
-                    }
-                return -1;
+                simd::mask_t non_tchar = is_non_tchar(v);
+                if (not non_tchar)
+                    continue;
+                simd::mask_t col = simd::simdv<N>::countzero_bitmask(non_tchar);
+                if (b_run[col] != COL) [[unlikely]]
+                    return -1;
+                out.name = static_cast<std::size_t>(b_run - b) + col;
+                parsing_value = true;
             }
-            out.name = col;
+            simd::mask_t control_char = is_control_char(v);
             // TODO
-            simd::mask_t value_mask = bits::tzmask(name_mask);
-            simd::mask_t cr = bits::tzcnt(val_mask);
-            
-            b_run += N; // next run
-            if (b_run >= stop) [[unlikely]]
-            {
-                // TODO: handle trailing bytes
-            }
         }
     }
 }

@@ -48,7 +48,7 @@ namespace httpvo::simd
                return v;
           }
 
-          static inline u64_t countz_bitmask(const mask_t m)
+          static inline u64_t countzero_bitmask(const mask_t m)
           {
                return bits::tzcnt(m) >> 3;
           }
