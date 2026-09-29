@@ -1,12 +1,17 @@
 #!/bin/bash
 
+# AUTUOR: MICHAEL SAVIOUR
+# SCRIPT: My personal compilation script
+
 CMDLINE_ARGUMENTS=$@
 CXXFILE=$1
 OUTPUT_FILE="/tmp/.tmp_run"
 CXXSTANDARD='-std=c++20'
-OPTIONS='-Wall'
+OPTIONS='-Wall -Werror --fno-tree-vectorize'
 OPT_LEVEL='-O2'
 CMD='g++'
+
+# TODO: add my pgo and asan test here
 
 FEATURE_FLAGS='-march=native'
 INCLUDE_ALT_PATH='/usr/local/include'
@@ -14,14 +19,19 @@ LIB_ALT_PATH='/usr/local/lib'
 
 LIB='-lbenchmark -lpthread'
 
+# I use Google Benchmark 
+BENCHMARK_OPTION='--benchmark_min_warmup_time=2'
+
 DEFINE='-DBENCHMARK_STATIC_DEFINE'
 
+# If no file is given, run the last compiled file
 if [[ -z $CXXFILE ]]; then
     if [[ ! -f $OUTPUT_FILE ]]; then
         echo -e "missing filename. Expected \`$0 CXXFILENAME -O{OPT_LEVEL} {-OPTIONS...}\`"
         exit -1
     fi
-    $OUTPUT_FILE --benchmark_min_warmup_time=2 && exit 0
+    $OUTPUT_FILE $BENCMARK_OPTION && exit 0
+
 elif [[ ! $CXXFILE =~ [[:alpha:]]+\.{1}(c(c|p|(pp)|(xx)|(\+\+)){1}$)|C(PP)?$ ]]; then
     echo -e "Invalid C++ file extension. required file must be *.c(c|p|pp|xx) or *.C(PP)"
     exit -1
