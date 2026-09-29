@@ -1,9 +1,10 @@
 #!/bin/python3
+
 """
-    GENERATE VALID TCHAR TABLE
+    AUTUOR: MICHAEL SAVIOUR
+    SCRIPT: GENERATE VALID TCHAR TABLE
 
     valid token character is set to 1, else 0
-
 """
 
 # tchar
