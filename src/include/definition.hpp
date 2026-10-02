@@ -189,15 +189,17 @@ namespace httpvo
 
      namespace setup
      {
-        static constexpr u8_t avx_512 = 1;
-        static constexpr u8_t avx_2   = 2;
-        static constexpr u8_t sse_4_2 = 3;
-        static constexpr u8_t int_64  = 4;
+        static constexpr u8_t avx_512 = 0;
+        static constexpr u8_t avx_2   = HTTPVO_HAVE__AVX2__;
+        static constexpr u8_t sse_4_2 = HTTPVO_HAVE__SSE4_2__;
+        static constexpr u8_t neon    = HTTPVO_HAVE__ARM_NEON__;
+        static constexpr u8_t int_64  = 1;
+        
 
         static constexpr bool support_unaligned = HTTPVO_HAVE_UNALIGNED;
         static constexpr bool little_endian     = HTTPVO_LITTLE_ENDIAN;
 
-        static constexpr bool debug = HTTPVO_DEBUG;
+        static constexpr bool debug            = HTTPVO_DEBUG;
         static constexpr bool no_multispace    = HTTPVO_NO_MULTI_WSP;
         static constexpr bool no_leading_space = HTTPVO_NO_LEADING_WSP;
         static constexpr bool no_vectorize     = HTTPVO_NO_VECTORIZE;

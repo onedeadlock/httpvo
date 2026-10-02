@@ -32,10 +32,10 @@ namespace httpvo::simd
             return _mm_movemask_epi8(lo);
         }
 
-         static inline u64_t countzero_bitmask(const mask_t m)
-          {
+        static inline u64_t countzero_bitmask(const mask_t m)
+        {
                return bits::tzcnt(m);
-          }
+        }
 
         template<u8_t a, u8_t b>
         TARGET("sse4")
@@ -53,12 +53,8 @@ namespace httpvo::simd
         TARGET("sse4")
         inline simdv cmpngt_lt(u8_t _aa=0, u8_t _bb=0)
         {
-            if constexpr (setup::debug)
-                assert(a < 0x80 and b < 0x80);
-                
-            __m128i x = _mm_set1_epi8(a);
-            __m128i y = _mm_set1_epi8(b);
-            return _mm_or_si128(_mm_cmplt_epi8(lo, x), _mm_cmpgt_epi8(lo, y));
+            __m128i x = _mm_add_epi8(lo, _mm_set1_epi8(static_cast<u8_t>(0x80 - a)));
+            return _mm_cmpgt_epi8(x, _mm_set1_epi8(static_cast<u8_t>((b - a) - 0x80)));
         }
 
         TARGET("sse4")
@@ -116,6 +112,13 @@ namespace httpvo::simd
         inline operator mask_t(void)
         {
             return _mm_movemask_epi8(lo);
+        }
+
+        static inline simdv andneqz(const simdv& u, const simdv& v)
+        {
+            // (u & v) != 0
+            assert(0 and "NO IMPLEMENTED");
+            return simdv(nullptr);
         }
     };
 

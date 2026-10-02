@@ -30,17 +30,17 @@ if len([x for x in DISTINCT_ROW if x != 0]) > 8:
     exit(-1)
 # give each valid high nibble a distinct id
 HI_TABLE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-for i, row in ROW.items():
-    if row in DISTINCT_ROW:
-        HI_TABLE[i] = 1 << i
+for hi, row_of_low_nib_bytes_that_has_hi in ROW.items():
+    if row_of_low_nib_bytes_that_has_hi in DISTINCT_ROW:
+        HI_TABLE[hi] = 1 << hi
 
 # build LOW table by accumulating ids common to low nibble
 LO_TABLE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 for lo in range(16):
-    for i, row in enumerate(DISTINCT_ROW):
-        if row != 0 and lo in row:
+    for hi, row_of_low_nib_bytes_that_has_hi in enumerate(DISTINCT_ROW):
+        if row_of_low_nib_bytes_that_has_hi != 0 and lo in row_of_low_nib_bytes_that_has_hi:
             # include all the ids of the rows that is common to the low nibble
-            LO_TABLE[lo] |= HI_TABLE[i]
+            LO_TABLE[lo] |= HI_TABLE[hi]
 
 # Check correctness of table over bytes in 0 - 255
 for i in range(256):

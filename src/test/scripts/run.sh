@@ -7,7 +7,7 @@ CMDLINE_ARGUMENTS=$@
 CXXFILE=$1
 OUTPUT_FILE="/tmp/.tmp_run"
 CXXSTANDARD='-std=c++20'
-OPTIONS='-Wall -Werror --fno-tree-vectorize'
+OPTIONS='-Wall -Werror -fno-tree-vectorize'
 OPT_LEVEL='-O2'
 CMD='g++'
 
