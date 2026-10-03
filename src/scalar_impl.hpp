@@ -5,6 +5,7 @@
 
 namespace httpvo::Implementation
 {
+    using namespace simd;
     static constexpr int CR = '\xd';
     static constexpr int LF = '\xa';
 
@@ -24,12 +25,12 @@ namespace httpvo::Implementation
             if (tsp) [[unlikely]]
                 return -1;
             tsp = true;
-            return {out.advance(i) and n_i < run_size, status::overrun_error};
+            return {out.advance(i) and n_i < run_size, status::bad_whitespace};
         }
         if (c == CR)
         {
             if (n_i == run_size)
-                return {0, status::expect_linefeed};
+                return {0, status::expect_line_feed};
             c = b[n_i];
         }
         if (c == LF)
@@ -56,7 +57,7 @@ namespace httpvo::Implementation
     }
 
     template<>
-    inline status http::parse_line<0, 0>(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const simd::mask_t mask [[maybe_unused]], u64_t tsp)
+    inline status http::parse_line<0, 0>(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const mask_t mask [[maybe_unused]], u64_t tsp)
     {
         // TODO: OPTIMIZE THIS FUNCTION
         // DO NOT CALL AS STANDALONE
@@ -72,18 +73,18 @@ namespace httpvo::Implementation
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>
-    inline status http::parse_line(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const simd::mask_t mask, u64_t tsp)
+    inline status http::parse_line(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp)
     {
         if constexpr (setup::no_vectorize)
             return parse_line<0, 0>(b, b_run, out, run_size, mask, tsp);
 
         static_assert(!(N & (N - 1))); // N must be a power of 2
         const u8_t * const end  = b + run_size;
-        const u8_t * const stop = !ISTRAIL ? b + (run_size & ~(N - 1)) : end;
+        const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
         for (; b_run < stop; b_run += N)
         {
-            simd::simdv<N> v{b_run};
-            simd::mask_t out_mask = v.template cmpngt_lt<0x21, 0x7e>().to_bitmask() & mask;
+            simdv<N> v{b_run};
+            mask_t out_mask = v.template cmpngt_lt<0x21, 0x7e>().to_bitmask() & mask;
             if (not out_mask) [[likely]]
             {
                 tsp = 0;
@@ -91,26 +92,26 @@ namespace httpvo::Implementation
             }
             for (; out_mask; out_mask = bits::clear_least_set_bit(out_mask))
             {
-                const unsigned int offset = simd::simdv<N>::countzero_bitmask(out_mask);
+                const unsigned int offset = simdv<N>::countzero_bitmask(out_mask);
                 u8_t c = b_run[offset];
                 if (common::is_whitespace(c)) [[likely]]
                 {
                     if (tsp & out_mask) [[unlikely]]
                     {
                         if constexpr (setup::no_multispace)
-                            return status::unwanted_whitespace;
-                        tsp = bits::least_set_bit(out_mask) << simd::simdv<N>::bitpos;
+                            return status::bad_whitespace;
+                        tsp = bits::least_set_bit(out_mask) << simdv<N>::bitpos;
                         continue;
                     }
                     if (not out.advance(static_cast<const std::size_t>(b_run - b) + offset)) [[unlikely]]
                         return -1;
-                    tsp = bits::least_set_bit(out_mask) << simd::simdv<N>::bitpos;
+                    tsp = bits::least_set_bit(out_mask) << simdv<N>::bitpos;
                     continue;
                 }
                 if (c == CR)
                 {
                     if ((b_run + offset) == (end - 1)) [[unlikely]]
-                        return {0, status::expect_linefeed};
+                        return {0, status::expect_line_feed};
                     c = b_run[offset + 1];
                 }
                 if (c == LF)
@@ -120,7 +121,7 @@ namespace httpvo::Implementation
                 }
                 return status::unexpected_char;
             }
-            tsp = bool(tsp) << (simd::simdv<N>::bitpos - 1);
+            tsp = bool(tsp) << (simdv<N>::bitpos - 1);
         }
         if constexpr (not ISTRAIL)
         {
@@ -128,7 +129,7 @@ namespace httpvo::Implementation
             {
                 // process trailing bytes by overlapping last read bytes with the remaining bytes
                 const std::size_t r = N - (run_size & (N - 1));
-                const std::size_t s = r * simd::simdv<N>::bitpos;
+                const std::size_t s = r * simdv<N>::bitpos;
                 return parse_line<N, true>(b, b_run - r, out, run_size, constant::cff << s, tsp << s);
             }
         }
@@ -139,46 +140,46 @@ namespace httpvo::Implementation
         return parse_trailing_chars(b, out, tsp, run_size, b_run - b);
     }
 
-    // see table generation scripts and comments on test/scripts/generate_shuffle_table.py
+    // see test/scripts/generate_shuffle_table.py for table generation and comments.
     alignas(32) static constexpr int NON_TCHAR_CLASS_LUT[32]{
         00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00,
         58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28,
     };
 
-     // see table generation scripts and comments on test/scripts/generate_shuffle2_table.py
+     // see test/scripts/generate_shuffle2_table.py for table generation and comments.
     alignas(32) static constexpr int CONTROL_CHAR_CLASS_LUT[32]{
         02, 02, 02, 02, 02, 02, 02, 02, 02, 02, 01, 00, 00, 00, 00, 03,
         01, 00, 127, 127, 127, 127, 127, 02, 127, 127, 127, 127, 127, 127, 127, 127,
     };
 
     template<simd::VWidth N>
-    inline simd::mask_t is_control_char(const simd::simdv<N>& v)
+    inline mask_t is_control_char(const simdv<N>& v)
     {
         // since the control bytes overlap, we can reduce to a precomputed comparison instead of a range test. see /test/scripts/generate_shuffle_table2.py for my comments
-        const simd::simdv<N> CTRL_LO = simd::simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
-        const simd::simdv<N> CTRL_HI = simd::simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
+        const simdv<N> CTRL_LO = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
+        const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
         if constexpr (setup::neon)
         {
              // we get 1.37x by skipping the &. We can because neon has a byte shift op.
             return v.shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);    
         }
-        const simd::simdv<N> LO_NIB  = simd::simdv<N>::splat(0x0f);
+        const simdv<N> LO_NIB  = simdv<N>::splat(0x0f);
         return v.shuf_table(CTRL_LO) > ((v >> 4) & LO_NIB).shuf_table(CTRL_HI);
     }
 
     template<simd::VWidth N>
-    inline simd::mask_t is_non_tchar(const simd::simdv<N>& v)
+    inline mask_t is_non_tchar(const simdv<N>& v)
     {
-        const simd::simdv<N> NON_TCHAR_LO = simd::simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 00);
-        const simd::simdv<N> NON_TCHAR_HI = simd::simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 16);
+        const simdv<N> NON_TCHAR_LO = simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 00);
+        const simdv<N> NON_TCHAR_HI = simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 16);
 
         if constexpr (setup::neon)
         {
             // skipped the & after v >> 4
-            return simd::simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), (v >> 4).shuf_table(NON_TCHAR_HI));
+            return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), (v >> 4).shuf_table(NON_TCHAR_HI));
         }
-        const simd::simdv<N> LO_NIB = simd::simdv<N>::splat(0x0f);
-        return simd::simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
+        const simdv<N> LO_NIB = simdv<N>::splat(0x0f);
+        return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
     template<simd::VWidth N=16, bool ISTRAIL=0>
@@ -187,25 +188,56 @@ namespace httpvo::Implementation
         static_assert(N > (16 - 1) or N > (32 - 1)); // N must be 16 or 32
         static constexpr u8_t COL = '\x3b';
 
-        u8_t *end = reinterpret_cast<u8_t>(b + run_size);
-        const u8_t * const stop = !ISTRAIL ? b + (run_size & ~(N - 1)) : end;
-        
+        const u8_t *end = reinterpret_cast<u8_t>(b + run_size);
+        const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
+        mask_t control_char = 0;
+
         for (bool parsing_value = true; true; b_run += N)
         {
-            simd::simdv<N> v(b_run);
+            simdv<N> v(b_run);
             if (not parsing_value)
             {
-                simd::mask_t non_tchar = is_non_tchar(v);
+                mask_t non_tchar = is_non_tchar(v);
                 if (not non_tchar)
                     continue;
-                simd::mask_t col = simd::simdv<N>::countzero_bitmask(non_tchar);
-                if (b_run[col] != COL) [[unlikely]]
+                mask_t i = simdv<N>::countzero_bitmask(non_tchar);
+                if (b_run[i] != COL) [[unlikely]]
                     return -1;
-                out.name = static_cast<std::size_t>(b_run - b) + col;
+                out.name.end = static_cast<std::size_t>(b_run - b) + i;
+                set out.value.pos = out.name.end + 1;
                 parsing_value = true;
             }
-            simd::mask_t control_char = is_control_char(v);
-            // TODO
+            if (control_char = is_control_char(v))
+                break;
+        }
+
+        if (const int i = simdv<N>::countzero_bitmask(control_char)) [[unlikely]]
+        {
+            alignas(8) static constexpr u8_t end_of_line_expect_size[8]{0, 3, 2, 2, 1, 1, 1, 1};
+            const u32_t n = static_cast<const u32_t>(control_char >> (i + 1));
+
+            if (0 >= end_of_line_expect_size[n]) [[likely]]
+            {
+                const u32_t v = common::_load_u32(b_run + i);
+                const bool end_of_line  = v ^ 0x0a0d; // 0 is true
+                const bool end_of_parse = v ^ 0x0a0d0000;
+                return {-end_of_line, end_of_parse};
+            }
+            bool has_cr = b_run[i] == CR;
+            bool is_end_of_buf = (end - b_run) < 1;
+
+            if (not has_cr or not is_end_of_buf and b_run[i + 1] != 0x0a) [[unlikely]]
+                return status::unexpected_char;
+            if (not is_end_of_buf) [[unlikely]]
+                return status::expect_line_feed;
+
+            out.value.end = (b - b_run) + i;
+            std::size_t tsp_count = common::rcount_whitespace(b, 0); // TODO: counts whitespace to the right
+            if (tsp_count == out.value.end) [[unlikely]]
+                return std::error;
+            out.value.pos += tsp_count;
+            out.value.end -= common::lcount_whitespace(b, 0);
+            return status::complete;
         }
     }
 }

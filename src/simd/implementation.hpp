@@ -122,7 +122,7 @@ namespace httpvo::simd
                     {
                          uint8x8_t aa = vdup_n_u8(a);
                          uint8x8_t x = vsub_u8(v, vdup_n_u8(a));
-                         return vcmpgt_u8(x, vdup_n_u8(b - a));
+                         return vcgt_u8(x, vdup_n_u8(b - a));
                     }
 #              endif
                static constexpr v64_t aa = splat_u64(0x7f + a);

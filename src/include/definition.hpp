@@ -199,10 +199,11 @@ namespace httpvo
         static constexpr bool support_unaligned = HTTPVO_HAVE_UNALIGNED;
         static constexpr bool little_endian     = HTTPVO_LITTLE_ENDIAN;
 
-        static constexpr bool debug            = HTTPVO_DEBUG;
-        static constexpr bool no_multispace    = HTTPVO_NO_MULTI_WSP;
-        static constexpr bool no_leading_space = HTTPVO_NO_LEADING_WSP;
-        static constexpr bool no_vectorize     = HTTPVO_NO_VECTORIZE;
+        static constexpr bool debug             = HTTPVO_DEBUG;
+        static constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
+        static constexpr bool no_leading_space  = HTTPVO_NO_LEADING_WSP;
+        static constexpr bool no_vectorize      = HTTPVO_NO_VECTORIZE;
+        static constexpr bool end_of_line_is_line_feed = true;
         static constexpr bool optimize_for_most_case = HTTPVO_OPTIMIZE_FOR_MOST_CASE;
      }
 }

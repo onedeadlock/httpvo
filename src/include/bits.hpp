@@ -20,9 +20,17 @@ namespace httpvo::bits
         return x & -x; // blsi
     }
 
-     __attribute__((const)) inline u64_t clear_least_set_bit(const u64_t x)
+    __attribute__((const)) inline u64_t clear_least_set_bit(const u64_t x)
     {
         return x & (x - 1); // blsr
+    }
+
+    __attribute__((const))
+    inline constexpr u64_t align(const u64_t x, const u64_t n)
+    {
+        if constexpr (setup::debug)
+            assert(n & (n - 1));
+        return x & ~(n - 1);
     }
 
     inline u64_t ltrim(u64_t x)

@@ -4,7 +4,10 @@ namespace httpvo
 {
     struct header_view
     {
-        std::size_t name;
-        std::size_t value;
+        struct
+        {
+            std::size_t pos;
+            std::size_t end;
+        } name, value;
     };
 }

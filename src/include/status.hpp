@@ -9,9 +9,9 @@ namespace httpvo
             complete        = 0,
             error           = -1,
             overrun_error   = -1,
-            expect_linefeed = -2,
+            expect_line_feed = -2,
             unexpected_char     = -3,
-            unwanted_whitespace = -4
+            bad_whitespace = -4
         };
 
         i8_t stat = 0;
