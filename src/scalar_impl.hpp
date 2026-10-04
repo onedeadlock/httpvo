@@ -142,8 +142,8 @@ namespace httpvo::Implementation
 
     // see test/scripts/generate_shuffle_table.py for table generation and comments.
     alignas(32) static constexpr int NON_TCHAR_CLASS_LUT[32]{
-        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00,
-        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28,
+        01, 01, 02, 04, 8, 16, 00, 32, 01, 01, 01, 01, 01, 01, 01, 01,
+        11, 01, 03, 01, 1, 01, 01, 01, 03, 03, 05, 53, 23, 53, 05, 39,
     };
 
      // see test/scripts/generate_shuffle2_table.py for table generation and comments.
@@ -182,6 +182,38 @@ namespace httpvo::Implementation
         return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
+    inline status is_end_of_line(u8_t * const b, mask_t mask, std::size_t i)
+    {
+        alignas(8) static constexpr u8_t end_of_line_expect_size[8]{0, 3, 2, 2, 1, 1, 1, 1};
+        const u32_t n = static_cast<const u32_t>(mask >> (i + 1));
+        // must assume that RUN_SIZE > 4
+        if (i >= end_of_line_expect_size[n]) [[likely]]
+        {
+            const u32_t v = common::_load_u32(b + i);
+            const bool end_of_line  = v == 0x0a0d;
+            const bool end_of_parse = v == 0x0a0d0000;
+            return {-!end_of_line, end_of_parse};
+        }
+        // TODO
+        bool is_cr = b[i] == CR;
+        if (0 < 0 and b[i + 1] != 0x0a)
+            return {-is_cr, status::unexpected_char};
+        return {-is_cr, status::unexpected_char};
+    }
+
+    inline status set_value(u8_t *const b, header_view &out, const std::size_t i)
+    {
+        // TODO
+        out.value.end = i;
+        std::size_t tsp_count = common::rcount_whitespace(b, 0); // TODO: counts whitespace to the right
+        if (tsp_count == out.value.end) [[unlikely]]
+            return status::error;
+
+        out.value.pos += tsp_count;
+        out.value.end -= common::lcount_whitespace(b, 0);
+        return status::complete;
+    }
+
     template<simd::VWidth N=16, bool ISTRAIL=0>
     inline status parse_16_32B(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
@@ -208,37 +240,14 @@ namespace httpvo::Implementation
                 parsing_value = true;
             }
             if (control_char = is_control_char(v))
-                break;
-        }
-
-        if (const int i = simdv<N>::countzero_bitmask(control_char)) [[unlikely]]
-        {
-            alignas(8) static constexpr u8_t end_of_line_expect_size[8]{0, 3, 2, 2, 1, 1, 1, 1};
-            const u32_t n = static_cast<const u32_t>(control_char >> (i + 1));
-
-            if (0 >= end_of_line_expect_size[n]) [[likely]]
             {
-                const u32_t v = common::_load_u32(b_run + i);
-                const bool end_of_line  = v ^ 0x0a0d; // 0 is true
-                const bool end_of_parse = v ^ 0x0a0d0000;
-                return {-end_of_line, end_of_parse};
+                std::size_t i = b - b_run + simdv<N>::countzero_mask(control_char);
+                status s = is_end_of_line(b_run, control_char, i);
+                if (s < 0) [[unlikely]] return s;
+                return set_value(b, out, i); // TODO
             }
-            bool has_cr = b_run[i] == CR;
-            bool is_end_of_buf = (end - b_run) < 1;
-
-            if (not has_cr or not is_end_of_buf and b_run[i + 1] != 0x0a) [[unlikely]]
-                return status::unexpected_char;
-            if (not is_end_of_buf) [[unlikely]]
-                return status::expect_line_feed;
-
-            out.value.end = (b - b_run) + i;
-            std::size_t tsp_count = common::rcount_whitespace(b, 0); // TODO: counts whitespace to the right
-            if (tsp_count == out.value.end) [[unlikely]]
-                return std::error;
-            out.value.pos += tsp_count;
-            out.value.end -= common::lcount_whitespace(b, 0);
-            return status::complete;
         }
+        return status::expect_bytes;
     }
 }
 

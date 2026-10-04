@@ -8,35 +8,45 @@
 """
 
 def generate_table(CHAR_CLASS):
-    # Split each byte into 4 bits low and hi nibble and create a 16x16 grid where
-    # each row correspond to the set of low nibbles that shares the same top (high) nibble and are valid tchar
-    HI_ROW_x_LO_COL = {hi: set(lo for lo in range(16) if (hi << 4 | lo) in CHAR_CLASS) for hi in range(16)}
+    MAX_DISTINCT_ROW = 8 # We choose one bit for the ID, per distinct row, so we can only have 8 of them (to fit 1 byte) 
+   
+    """
+    First, split each byte into 4 bits low and hi nibble and create a 16x16 grid where
+    each high nibble correspond to the set of low nibbles that shares it as their high nibble
+    for instance (the index is used for high):
+    HI   -      LO(s)
+    [0]  - 0, 1, 2, 3, 4, 5     // 0x0_0, 0x0_1, 0x0_2, 0x0_3, 0x0_4, 0x0_5
+    ...          ...
+    ...          ...
+    [15] - 0, 1, 2, 3, 4, 5     // 0xf_0, 0xf_1, 0xf_2, 0xf_3, 0xf_4, 0xf_5
+    """
+    HI_ROW_x_LO_COL = [0] * 16
+    for hi in range(16):
+        HI_ROW_x_LO_COL[hi] = [lo for lo in range(16) if (hi << 4 | lo) in CHAR_CLASS]
 
-    # Collect only distinct rows of low bits
-    DISTINCT_ROW = []
-    for i in range(16):
-        row_i = HI_ROW_x_LO_COL[i]
-        DISTINCT_ROW.append(row_i if row_i and row_i not in DISTINCT_ROW else 0)
-
-    # Ensure that we only have atmost 8 distinct sets of low nibbles
-    if len([x for x in DISTINCT_ROW if x != 0]) > 8:
-        print("More than 8 distinct sets")
-        exit(-1)
-
-    # give each valid high nibble (row) a distinct id
-    HI_TABLE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    # Next, build High Table by giving each row an id. Similar rows are given the same ID
     i = 0
-    for hi, row_of_low_nib_bytes_that_has_hi in HI_ROW_x_LO_COL.items():
-        if row_of_low_nib_bytes_that_has_hi in DISTINCT_ROW:
-            HI_TABLE[hi] = 1 << i
-            i += 1
+    DUPLICATE_ROW = []
+    HI_TABLE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    for hi, row in enumerate(HI_ROW_x_LO_COL):
+        if len(row):
+            if row not in DUPLICATE_ROW:
+                HI_TABLE[hi] = 1 << i
+                DUPLICATE_ROW.append(row)
+                i += 1
+            else:
+                HI_TABLE[hi] = HI_TABLE[HI_ROW_x_LO_COL.index(row)]
 
-    # build low nibble table by accumulating the ids of rows common to each low nibble
+    # Check if we have more than 8 unique rows
+    if len(DUPLICATE_ROW) > MAX_DISTINCT_ROW:
+        print("error, more than 8 distinct rows")
+    
+    # build Low Table by accumulating the id of each row common to a low nibble
     LO_TABLE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     for lo in range(16):
-    #   include all the ids of every row has lo
-        for hi, row_of_low_nib_bytes_that_has_hi in enumerate(DISTINCT_ROW):
-            if row_of_low_nib_bytes_that_has_hi != 0 and lo in row_of_low_nib_bytes_that_has_hi:
+    #   include all the ids of every row that has this low nibble
+        for hi, row in enumerate(HI_ROW_x_LO_COL):
+            if len(row) and lo in row:
                 LO_TABLE[lo] |= HI_TABLE[hi]
 
     # Check correctness of table over bytes in 0 - 255
@@ -50,15 +60,18 @@ def generate_table(CHAR_CLASS):
             print("Bug in classification table: Caught outside bytes.")
             exit(-1)
         
-        return ((HI_TABLE, LO_TABLE), ([hex(i) for i in HI_TABLE], [hex(i) for i in LO_TABLE]))
+    return (HI_TABLE, LO_TABLE)
 
-# DONE
-# TCHAR table for header names
-TCHAR = [i for i in range(0, 256) if chr(i) in "!#$%&'*+-.0123456789^_`|~" or i in range(65,  91) or i in range(97, 123)]
 
-print(generate_table(TCHAR))
+def main():
+    # TCHAR table for header names
+    TCHAR = [i for i in range(0, 256) if chr(i) in "!#$%&'*+-.0123456789^_`|~" or i in range(65,  91) or i in range(97, 123)]
+    HI, LO = generate_table(TCHAR)
+    print(HI, LO)
 
-# NON-TCHAR table for header names
-NON_TCHAR_PLUS_COLON = [i for i in range(0, 256) if i not in TCHAR or chr(i) != ':']
+    # NON-TCHAR table for header names
+    NON_TCHAR_PLUS_COLON = [i for i in range(0, 256) if (i not in TCHAR)]
+    HI, LO = generate_table(NON_TCHAR_PLUS_COLON)
+    print(HI, LO)
 
-print(generate_table(NON_TCHAR_PLUS_COLON))
+main()
