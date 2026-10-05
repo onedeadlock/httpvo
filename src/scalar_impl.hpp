@@ -180,10 +180,10 @@ namespace httpvo::Implementation
         return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
-    inline status is_end_of_line(u8_t * const b, const mask_t mask, const std::size_t mi, const std::size_t at, const std::size_t size)
+    inline status is_end_of_line(u8_t * const b, const mask_t mask, const std::size_t offset, const std::size_t at, const std::size_t size)
     {
         alignas(8) static constexpr u8_t end_of_line_expect_size[8]{0, 3, 2, 2, 1, 1, 1, 1};
-        const u32_t n = mask >> (mi + 1);
+        const u32_t n = mask >> (offset + 1);
         // must assume that RUN_SIZE > 4
         if ((size - at) >= end_of_line_expect_size[n]) [[likely]]
         {
@@ -198,17 +198,12 @@ namespace httpvo::Implementation
         return {-is_cr, status::unexpected_char};
     }
 
-    inline status set_value(u8_t *const b, header_view &out, const std::size_t i)
+    inline int set_value(u8_t *const b, header_view &out, const std::size_t at)
     {
-        // TODO
-        out.value.end = i;
-        std::size_t tsp_count = common::rcount_whitespace(b, 0); // TODO: counts whitespace to the right
-        if (tsp_count == out.value.end) [[unlikely]]
-            return status::error;
-
-        out.value.pos += tsp_count;
-        out.value.end -= common::lcount_whitespace(b, 0);
-        return status::complete;
+        if (out.value.ltrim_whitespace(b) != 0) [[unlikely]]
+            return status::error;
+        out.value.end = at;
+        return out.value.rtrim_whitespace(b);
     }
 
     template<simd::VWidth N=16, bool ISTRAIL=0>
@@ -228,18 +223,18 @@ namespace httpvo::Implementation
                 mask_t non_tchar = is_non_tchar(v);
                 if (not non_tchar)
                     continue;
-                const std::size_t mi = simdv<N>::countzero_bitmask(non_tchar);
-                if (b_run[mi] != COL) [[unlikely]]
+                const std::size_t offset = simdv<N>::countzero_bitmask(non_tchar);
+                if (b_run[offset] != COL) [[unlikely]]
                     return -1;
-                out.name.end = static_cast<std::size_t>(b_run - b) + mi;
-                set out.value.pos = out.name.end + 1;
+                out.name.end = static_cast<std::size_t>(b_run - b) + offset;
+                out.value.pos = out.name.end + 1;
                 parsing_value = true;
             }
             if (mask_t control_char = is_control_char(v))
             {
-                const std::size_t mi = simdv<N>::countzero_bitmask(control_char);
-                const std::size_t at = static_cast<std::size_t>(b_run - b) + mi;
-                status s = is_end_of_line(b_run, control_char, mi, at);
+                const std::size_t offset = simdv<N>::countzero_bitmask(control_char);
+                const std::size_t at = static_cast<std::size_t>(b_run - b) + offset;
+                status s = is_end_of_line(b_run, control_char, offset, at);
                 if (s < 0) [[unlikely]] return s;
                 s = set_value(b, out, at);
                 return s;
