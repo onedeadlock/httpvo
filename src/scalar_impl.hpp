@@ -183,14 +183,14 @@ namespace httpvo::Implementation
     inline status is_end_of_line(u8_t * const b, const std::size_t rem)
     {
         static constexpr u32_t CRLF     = 0x0a0d;
-        static constexpr u32_t CRLFCRLF = 0x0a0d0ad0;
+        static constexpr u32_t CRLFCRLF = 0x0a0d0a0d;
         if (rem > 3) [[likely]]
         {
             const u32_t v = common::_load_u32(b);
             return {-(v != CRLF), v == CRLFCRLF};
         }
         bool is_cr = b[0] != CR;
-        if (rem and  b[1] != LF)
+        if (rem and  b[1] != LF) [[unlikely]]
             return {-is_cr, status::unexpected_char};
         return {-is_cr, status::unexpected_char};
     }
@@ -203,7 +203,7 @@ namespace httpvo::Implementation
         return out.value.rtrim_whitespace(b);
     }
 
-    template<simd::VWidth N=16, bool ISTRAIL=0>
+    template<simd::VWidth N, bool ISTRAIL>
     inline status parse_16_32B(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
         static_assert(N > (16 - 1) or N > (32 - 1)); // N must be 16 or 32
