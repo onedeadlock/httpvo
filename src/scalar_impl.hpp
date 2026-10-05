@@ -222,7 +222,7 @@ namespace httpvo::Implementation
                     continue;
                 const std::size_t offset = simdv<N>::countzero_bitmask(non_tchar);
                 if (b_run[offset] != COL) [[unlikely]]
-                    return -1;
+                    return status::unexpected_char;
                 out.name.end = static_cast<std::size_t>(b_run - b) + offset;
                 out.value.pos = out.name.end + 1;
                 parsing_value = true;
@@ -233,7 +233,8 @@ namespace httpvo::Implementation
                 const std::size_t at = static_cast<std::size_t>(b_run - b) + offset;
                 status s = is_end_of_line(b_run + offset, run_size - at);
                 if (s < 0) [[unlikely]] return s;
-                s = set_value(b, out, at);
+                out.value.end = at;
+                s = out.value.trim_whitespace(b);
                 return s;
             }
         }
