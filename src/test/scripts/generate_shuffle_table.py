@@ -3,8 +3,8 @@
     AUTUOR: MICHAEL SAVIOUR
     SCRIPT: GENERATE SHUFFLE TABLE FOR VALID/NON-VALID TCHAR CLASSIFICATION USING PSHUFB
 
-    Each byte B is inserted into two tables (HI[] and LO[]) by representing its low and high 4 bits
-    with uniques values such that HI[B >> 4] & LO[B & 0xf] is non-zero.
+    Each byte B is classified by two tables (HI_TABLE[] and LO_TABLE[]) which are tables of its low and high 4 bits
+    given uniques values such that HI_TABLE[B >> 4] & LO_TABLE[B & 0xf] is non-zero.
 """
 
 def generate_table(CHAR_CLASS):
@@ -13,7 +13,7 @@ def generate_table(CHAR_CLASS):
     """
     First, split each byte into 4 bits low and hi nibble and create a 16x16 grid where
     each high nibble correspond to the set of low nibbles that shares it as their high nibble
-    for instance (the index is used for high):
+    for instance:
     HI   -      LO(s)
     [0]  - 0, 1, 2, 3, 4, 5     // 0x0_0, 0x0_1, 0x0_2, 0x0_3, 0x0_4, 0x0_5
     ...          ...
@@ -49,7 +49,7 @@ def generate_table(CHAR_CLASS):
             if len(row) and lo in row:
                 LO_TABLE[lo] |= HI_TABLE[hi]
 
-    # Check correctness of table over bytes in 0 - 255
+    # Check correctness of table
     for i in range(256):
         if (i in CHAR_CLASS) and (LO_TABLE[i & 0xf] & HI_TABLE[i >> 4]) == 0:
             print("Bug in classification table")
@@ -70,8 +70,8 @@ def main():
     print(HI, LO)
 
     # NON-TCHAR table for header names
-    NON_TCHAR_PLUS_COLON = [i for i in range(0, 256) if (i not in TCHAR)]
-    HI, LO = generate_table(NON_TCHAR_PLUS_COLON)
+    NON_TCHAR = [i for i in range(0, 256) if (i not in TCHAR)]
+    HI, LO = generate_table(NON_TCHAR)
     print(HI, LO)
 
 main()
