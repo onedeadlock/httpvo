@@ -160,7 +160,7 @@ namespace httpvo::Implementation
         const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
         if constexpr (setup::neon)
         {
-             // we get 1.37x by skipping the &. We can because neon has a byte shift op.
+             // we get 1.37x by skipping the '& LO_NIB'. We can because neon has a byte shift op.
             return v.shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);    
         }
         const simdv<N> LO_NIB  = simdv<N>::splat(0x0f);
@@ -174,29 +174,26 @@ namespace httpvo::Implementation
         const simdv<N> NON_TCHAR_HI = simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 16);
 
         if constexpr (setup::neon)
-        {
-            // skipped the & after v >> 4
             return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), (v >> 4).shuf_table(NON_TCHAR_HI));
-        }
+
         const simdv<N> LO_NIB = simdv<N>::splat(0x0f);
         return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
-    inline status is_end_of_line(u8_t * const b, mask_t mask, std::size_t i)
+    inline status is_end_of_line(u8_t * const b, const mask_t mask, const std::size_t mi, const std::size_t at, const std::size_t size)
     {
         alignas(8) static constexpr u8_t end_of_line_expect_size[8]{0, 3, 2, 2, 1, 1, 1, 1};
-        const u32_t n = static_cast<const u32_t>(mask >> (i + 1));
+        const u32_t n = mask >> (mi + 1);
         // must assume that RUN_SIZE > 4
-        if (i >= end_of_line_expect_size[n]) [[likely]]
+        if ((size - at) >= end_of_line_expect_size[n]) [[likely]]
         {
-            const u32_t v = common::_load_u32(b + i);
+            const u32_t v = common::_load_u32(b + at);
             const bool end_of_line  = v == 0x0a0d;
             const bool end_of_parse = v == 0x0a0d0000;
             return {-!end_of_line, end_of_parse};
         }
-        // TODO
-        bool is_cr = b[i] == CR;
-        if (0 < 0 and b[i + 1] != 0x0a)
+        bool is_cr = b[at] == CR;
+        if (at < size and b[at + 1] != 0x0a)
             return {-is_cr, status::unexpected_char};
         return {-is_cr, status::unexpected_char};
     }
@@ -222,9 +219,8 @@ namespace httpvo::Implementation
 
         const u8_t *end = reinterpret_cast<u8_t>(b + run_size);
         const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
-        mask_t control_char = 0;
 
-        for (bool parsing_value = true; true; b_run += N)
+        for (bool parsing_value = false; true; b_run += N)
         {
             simdv<N> v(b_run);
             if (not parsing_value)
@@ -232,19 +228,21 @@ namespace httpvo::Implementation
                 mask_t non_tchar = is_non_tchar(v);
                 if (not non_tchar)
                     continue;
-                mask_t i = simdv<N>::countzero_bitmask(non_tchar);
-                if (b_run[i] != COL) [[unlikely]]
+                const std::size_t mi = simdv<N>::countzero_bitmask(non_tchar);
+                if (b_run[mi] != COL) [[unlikely]]
                     return -1;
-                out.name.end = static_cast<std::size_t>(b_run - b) + i;
+                out.name.end = static_cast<std::size_t>(b_run - b) + mi;
                 set out.value.pos = out.name.end + 1;
                 parsing_value = true;
             }
-            if (control_char = is_control_char(v))
+            if (mask_t control_char = is_control_char(v))
             {
-                std::size_t i = b - b_run + simdv<N>::countzero_mask(control_char);
-                status s = is_end_of_line(b_run, control_char, i);
+                const std::size_t mi = simdv<N>::countzero_bitmask(control_char);
+                const std::size_t at = static_cast<std::size_t>(b_run - b) + mi;
+                status s = is_end_of_line(b_run, control_char, i, at);
                 if (s < 0) [[unlikely]] return s;
-                return set_value(b, out, i); // TODO
+                s = set_value(b, out, at);
+                return s;
             }
         }
         return status::expect_bytes;
