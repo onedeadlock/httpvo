@@ -239,7 +239,7 @@ namespace httpvo::Implementation
             {
                 const std::size_t mi = simdv<N>::countzero_bitmask(control_char);
                 const std::size_t at = static_cast<std::size_t>(b_run - b) + mi;
-                status s = is_end_of_line(b_run, control_char, i, at);
+                status s = is_end_of_line(b_run, control_char, mi, at);
                 if (s < 0) [[unlikely]] return s;
                 s = set_value(b, out, at);
                 return s;
