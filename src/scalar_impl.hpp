@@ -180,20 +180,17 @@ namespace httpvo::Implementation
         return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
-    inline status is_end_of_line(u8_t * const b, const mask_t mask, const std::size_t offset, const std::size_t at, const std::size_t size)
+    inline status is_end_of_line(u8_t * const b, const std::size_t rem)
     {
-        alignas(8) static constexpr u8_t end_of_line_expect_size[8]{0, 3, 2, 2, 1, 1, 1, 1};
-        const u32_t n = mask >> (offset + 1);
-        // must assume that RUN_SIZE > 4
-        if ((size - at) >= end_of_line_expect_size[n]) [[likely]]
+        static constexpr u32_t CRLF     = 0x0a0d;
+        static constexpr u32_t CRLFCRLF = 0x0a0d0ad0;
+        if (rem > 3) [[likely]]
         {
-            const u32_t v = common::_load_u32(b + at);
-            const bool end_of_line  = v == 0x0a0d;
-            const bool end_of_parse = v == 0x0a0d0000;
-            return {-!end_of_line, end_of_parse};
+            const u32_t v = common::_load_u32(b);
+            return {-(v != CRLF), v == CRLFCRLF};
         }
-        bool is_cr = b[at] == CR;
-        if (at < size and b[at + 1] != 0x0a)
+        bool is_cr = b[0] != CR;
+        if (rem and  b[1] != LF)
             return {-is_cr, status::unexpected_char};
         return {-is_cr, status::unexpected_char};
     }
@@ -234,7 +231,7 @@ namespace httpvo::Implementation
             {
                 const std::size_t offset = simdv<N>::countzero_bitmask(control_char);
                 const std::size_t at = static_cast<std::size_t>(b_run - b) + offset;
-                status s = is_end_of_line(b_run, control_char, offset, at);
+                status s = is_end_of_line(b_run + offset, run_size - at);
                 if (s < 0) [[unlikely]] return s;
                 s = set_value(b, out, at);
                 return s;
