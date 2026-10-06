@@ -189,18 +189,10 @@ namespace httpvo::Implementation
             const u32_t v = common::_load_u32(b);
             return {-(v != CRLF), v == CRLFCRLF};
         }
-        bool is_cr = b[0] != CR;
+        bool isn_cr = b[0] != CR;
         if (rem and  b[1] != LF) [[unlikely]]
-            return {-is_cr, status::unexpected_char};
-        return {-is_cr, status::unexpected_char};
-    }
-
-    inline int set_value(u8_t *const b, header_view &out, const std::size_t at)
-    {
-        if (out.value.ltrim_whitespace(b) != 0) [[unlikely]]
-            return status::error;
-        out.value.end = at;
-        return out.value.rtrim_whitespace(b);
+            return {-isn_cr, status::unexpected_char};
+        return {-isn_cr, status::unexpected_char};
     }
 
     template<simd::VWidth N, bool ISTRAIL>
