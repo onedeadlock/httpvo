@@ -188,10 +188,10 @@ namespace httpvo::Implementation
         {
             const u32_t v = common::_load_u32(b);
             return {-(v != CRLF), v == CRLFCRLF};
-        }
-        bool isn_cr = b[0] != CR;
+        }
         if (rem and  b[1] != LF) [[unlikely]]
             return status::unexpected_char;
+        const bool isn_cr = b[0] != CR;
         return {-isn_cr, status::unexpected_char};
     }
 
