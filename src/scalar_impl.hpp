@@ -191,7 +191,7 @@ namespace httpvo::Implementation
         }
         bool isn_cr = b[0] != CR;
         if (rem and  b[1] != LF) [[unlikely]]
-            return {-isn_cr, status::unexpected_char};
+            return status::unexpected_char;
         return {-isn_cr, status::unexpected_char};
     }
 
