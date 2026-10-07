@@ -11,13 +11,14 @@
 
 #if   HTTPVO_HAVE__AVX2__
 #    include "simd/haswell/implementation.hpp"
-#elif HTTPVO_HAVE__SSE4_2__
-#    include "simd/westmere/implementation.hpp"
-#elif HTTPVO_HAVE__ARM_NEON__
-#    include "simd/neon/implementation.hpp"
-#else
-#    include "simd/implementation.hpp"
 #endif
+#if HTTPVO_HAVE__SSE4_2__
+#    include "simd/westmere/implementation.hpp"
+#endif
+#if HTTPVO_HAVE__ARM_NEON__
+#    include "simd/neon/implementation.hpp"
+#endif
+#include "simd/implementation.hpp"
 
 namespace httpvo::Implementation
 {

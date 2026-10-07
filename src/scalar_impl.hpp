@@ -72,7 +72,7 @@ namespace httpvo::Implementation
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>
-    inline status http::parse_line(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp)
+    [[nodiscard]] inline status http::parse_line(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp)
     {
         static_assert(bits::is_power_of_two(N));
 
@@ -198,7 +198,7 @@ namespace httpvo::Implementation
     }
 
     template<simd::VWidth N, bool ISTRAIL>
-    inline status parse_header(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    [[nodiscard]] inline status http::parse_header(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
         static_assert(N == 16 or N == 32);
        
@@ -236,5 +236,4 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
 }
-
 #endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP
