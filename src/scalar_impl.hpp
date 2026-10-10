@@ -43,17 +43,17 @@ namespace httpvo::Implementation
 
     inline status parse_trailing_chars(const u8_t * const b, ReqLine& out, u64_t &tsp, std::size_t run_size, std::size_t i)
     {
-        status stat {0};
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+0)) < 1) return stat;
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+1)) < 1) return stat;
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+2)) < 1) return stat;
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+3)) < 1) return stat;
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+4)) < 1) return stat;
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+5)) < 1) return stat;
-        if ((stat = parse_single_char(b, out, tsp, run_size, i+6)) < 1) return stat;
+        status s {0};
+        if ((s = parse_single_char(b, out, tsp, run_size, i+0)) < 1) return s;
+        if ((s = parse_single_char(b, out, tsp, run_size, i+1)) < 1) return s;
+        if ((s = parse_single_char(b, out, tsp, run_size, i+2)) < 1) return s;
+        if ((s = parse_single_char(b, out, tsp, run_size, i+3)) < 1) return stat;
+        if ((s = parse_single_char(b, out, tsp, run_size, i+4)) < 1) return s;
+        if ((s = parse_single_char(b, out, tsp, run_size, i+5)) < 1) return s;
+        if ((s = parse_single_char(b, out, tsp, run_size, i+6)) < 1) return s;
         if constexpr (setup::no_vectorize)
             return parse_single_char(b, out, tsp, run_size, i+7);
-        return stat;
+        return s;
     }
 
     template<>
@@ -61,13 +61,13 @@ namespace httpvo::Implementation
     {
         // TODO: OPTIMIZE THIS FUNCTION
         // DO NOT CALL AS STANDALONE
-        status stat {0};
+        status s{0};
         for (std::size_t i = 0; true; i += 16)
         {
-            if ((stat = parse_trailing_chars(b, out, tsp, run_size, i+0)) < 1)
-                return stat;
-            if ((stat = parse_trailing_chars(b, out, tsp, run_size, i+8)) < 1)
-                return stat;
+            if ((s = parse_trailing_chars(b, out, tsp, run_size, i+0)) < 1)
+                return s;
+            if ((s = parse_trailing_chars(b, out, tsp, run_size, i+8)) < 1)
+                return s;
         }
         return stat;
     }
