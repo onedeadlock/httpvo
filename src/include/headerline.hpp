@@ -8,6 +8,14 @@ namespace httpvo
         {
             std::size_t pos;
             std::size_t end;
+            inline int commit(const u8_t *const b)
+            {
+                while (pos != end and common::is_whitespace(b[pos++]))
+                    pass();
+                while (end and common::is_whitespace(b[end--]))
+                    pass();
+                return pos == end;
+            }
         } name, value;
     };
 }

@@ -69,7 +69,7 @@ namespace httpvo::Implementation
             if ((s = parse_chars(b, out, tsp, run_size, i+8)) < 1)
                 return s;
         }
-        return stat;
+        return s;
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>
@@ -78,13 +78,13 @@ namespace httpvo::Implementation
         if constexpr (setup::no_vectorize)
             return parse_line<0, 0>(b, b_run, out, run_size, mask, tsp);
 
-        static_assert(!(N & (N - 1))); // N must be a power of 2
+        static_assert(bits::is_power_of_two(N)); // N must be a power of 2
         const u8_t * const end  = b + run_size;
         const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
         for (; b_run < stop; b_run += N)
         {
             simdv<N> v{b_run};
-            mask_t out_mask = v.template cmpngt_lt<0x21, 0x7e>().to_bitmask() & mask;
+            mask_t out_mask = mask & v.template cmpngt_lt<0x21, 0x7e>();
             if (not out_mask) [[likely]]
             {
                 tsp = 0;
@@ -174,10 +174,10 @@ namespace httpvo::Implementation
         const simdv<N> NON_TCHAR_HI = simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 16);
 
         if constexpr (setup::neon)
-            return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), (v >> 4).shuf_table(NON_TCHAR_HI));
+            return simdv<N>::andeqz(v.shuf_table(NON_TCHAR_LO), (v >> 4).shuf_table(NON_TCHAR_HI));
 
         const simdv<N> LO_NIB = simdv<N>::splat(0x0f);
-        return simdv<N>::andneqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
+        return simdv<N>::andeqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
     inline status is_end_of_line(u8_t * const b, const std::size_t rem)
@@ -187,24 +187,27 @@ namespace httpvo::Implementation
         if (rem > 3) [[likely]]
         {
             const u32_t v = common::_load_u32(b);
-            return {-(v != CRLF), v == CRLFCRLF};
-        }
+            const i8_t isnot_eol = -( v != CRLF );
+            return {isnot_eol, v == CRLFCRLF};
+        }
+
         if (rem and  b[1] != LF) [[unlikely]]
             return status::unexpected_char;
-        const bool isn_cr = b[0] != CR;
-        return {-isn_cr, status::unexpected_char};
+        const i8_t isnot_cr = -( b[0] != CR );
+        return {isnot_cr, status::unexpected_char};
     }
 
     template<simd::VWidth N, bool ISTRAIL>
     inline status parse_16_32B(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
-        static_assert(N > (16 - 1) or N > (32 - 1)); // N must be 16 or 32
+        static_assert(N == 16 or N == 32);
+       
         static constexpr u8_t COL = '\x3b';
 
-        const u8_t *end = reinterpret_cast<u8_t>(b + run_size);
-        const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
+        const u8_t * const stop = b + (!ISTRAIL ? bits::align(run_size, N) : run_size);
 
-        for (bool parsing_value = false; true; b_run += N)
+        bool parsing_value = false;
+        for (; b_run < stop; b_run += N)
         {
             simdv<N> v(b_run);
             if (not parsing_value)
@@ -226,7 +229,7 @@ namespace httpvo::Implementation
                 status s = is_end_of_line(b_run + offset, run_size - at);
                 if (s < 0) [[unlikely]] return s;
                 out.value.end = at;
-                s = out.value.trim_whitespace(b);
+                s = out.value.commit(reinterpret_cast<const u8_t *>(b));
                 return s;
             }
         }

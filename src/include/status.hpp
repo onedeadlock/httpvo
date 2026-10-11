@@ -20,6 +20,11 @@ namespace httpvo
         inline constexpr status(i8_t s) : stat{s} {}
         inline constexpr status(i8_t s, i8_t e) : stat{s}, code{e} {}
 
+        inline void operator=(const i8_t s)
+        {
+            stat = s;
+        }
+
         inline bool operator==(i8_t s) const
         {
             return stat == s;

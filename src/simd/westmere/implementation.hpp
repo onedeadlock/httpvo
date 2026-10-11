@@ -27,7 +27,7 @@ namespace httpvo::simd
         }
 
         TARGET("sse4")
-        inline u64_t to_bitmask(void)
+        inline u64_t to_bitmask(void) const
         {
             return _mm_movemask_epi8(lo);
         }
@@ -37,88 +37,87 @@ namespace httpvo::simd
                return bits::tzcnt(m);
         }
 
-        template<u8_t a, u8_t b>
-        TARGET("sse4")
-        inline simdv cmpgt_lt(u8_t _aa=0, u8_t _bb=0)
-        {
-            if constexpr (setup::debug)
-                assert(a < 0x80 and b < 0x80);
-
-            __m128i x = _mm_set1_epi8(a);
-            __m128i y = _mm_set1_epi8(b);
-            return _mm_and_si128(_mm_cmpgt_epi8(lo, x), _mm_cmplt_epi8(lo, y));
-        }
-
         template<u8_t a=0, u8_t b=0>
         TARGET("sse4")
-        inline simdv cmpngt_lt(u8_t _aa=0, u8_t _bb=0)
+        inline simdv cmpngt_lt()
         {
             __m128i x = _mm_add_epi8(lo, _mm_set1_epi8(static_cast<u8_t>(0x80 - a)));
             return _mm_cmpgt_epi8(x, _mm_set1_epi8(static_cast<u8_t>((b - a) - 0x80)));
         }
 
         TARGET("sse4")
-        inline simdv shuf_table(const simdv& tab)
+        inline simdv shuf_table(const simdv& tab) const
         {
             return _mm_shuffle_epi8(lo, tab.lo);
         }
 
         TARGET("sse4")
-        inline simdv operator&(const simdv &v)
+        inline simdv operator&(const simdv &v) const
         {
             return _mm_and_si128(lo, v.lo);
         }
 
         TARGET("sse4")
-        inline simdv operator<<(const int r)
+        inline mask_t operator&(const mask_t m) const
+        {
+            return to_bitmask() & m;
+        }
+
+        TARGET("sse4")
+        inline simdv operator<<(const int r) const
         {
             return _mm_srli_si128(lo, r);
         }
 
         TARGET("sse4")
-        inline simdv operator|(const simdv& v)
+        inline simdv operator|(const simdv& v) const
         {
             return _mm_or_si128(lo, v.lo);
         }
 
         TARGET("sse4")
-        inline simdv operator==(const simdv &v)
+        inline simdv operator==(const simdv &v) const
         {
-            // we use an unsigned compare here
             return _mm_cmpeq_epi8(lo, v.lo);
         }
 
         TARGET("sse4")
-        inline simdv operator<=(const simdv &v)
+        inline simdv operator<=(const simdv &v) const
         {
-            // we use an unsigned compare here
             return _mm_cmpeq_epi8(_mm_min_epi8(lo, v.lo), lo);
         }
 
         TARGET("sse4")
-        inline simdv andnot(const simdv &v)
+        inline simdv andnot(const simdv &v) const
         {
             // a & ~b
             return _mm_andnot_si128(v.lo, lo);
         }
 
         TARGET("sse4")
-        inline simdv setzero(void)
+        inline simdv setzero(void) const
         {
             return _mm_setzero_si128();
         }
 
         TARGET("sse4")
-        inline operator mask_t(void)
+        inline operator mask_t(void) const
         {
             return _mm_movemask_epi8(lo);
         }
 
-        static inline simdv andneqz(const simdv& u, const simdv& v)
+        TARGET("sse4")
+        static inline simdv load_tbl1(const void * const b)
         {
-            // (u & v) != 0
-            assert(0 and "NO IMPLEMENTED");
-            return simdv(nullptr);
+            // load a 16B table
+            return {_mm_loadu_si128(reinterpret_cast<const __m128i *>(b))};
+        }
+
+        TARGET("sse4")
+        static inline simdv andeqz(simdv&& u, simdv&& v)
+        {
+            // (a & v) == 0
+            return (u & v) == u.setzero();
         }
     };
 

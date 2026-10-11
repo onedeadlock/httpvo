@@ -203,7 +203,7 @@ namespace httpvo
         static constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
         static constexpr bool no_leading_space  = HTTPVO_NO_LEADING_WSP;
         static constexpr bool no_vectorize      = HTTPVO_NO_VECTORIZE;
-        static constexpr bool end_of_line_is_line_feed = true;
+        static constexpr bool end_of_line_is_line_feed = true; // TODO
         static constexpr bool optimize_for_most_case = HTTPVO_OPTIMIZE_FOR_MOST_CASE;
      }
 }

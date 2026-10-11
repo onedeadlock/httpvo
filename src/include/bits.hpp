@@ -25,6 +25,11 @@ namespace httpvo::bits
         return x & (x - 1); // blsr
     }
 
+    __attribute__((const)) inline constexpr bool is_power_of_two(const u64_t x)
+    {
+        return !(x & (x - 1));
+    }
+
     __attribute__((const))
     inline constexpr u64_t align(const u64_t x, const u64_t n)
     {

@@ -20,7 +20,7 @@ def generate_table(CHAR_CLASS):
     ...          ...
     [15] - 0, 1, 2, 3, 4, 5     // 0xf_0, 0xf_1, 0xf_2, 0xf_3, 0xf_4, 0xf_5
     """
-    HI_ROW_x_LO_COL = [0] * 16
+    HI_ROW_x_LO_COL = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     for hi in range(16):
         HI_ROW_x_LO_COL[hi] = [lo for lo in range(16) if (hi << 4 | lo) in CHAR_CLASS]
 

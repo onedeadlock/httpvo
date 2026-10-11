@@ -59,6 +59,9 @@ namespace httpvo::simd
 
           inline mask_t to_bitmask(void) const
           {
+#              if HTTPVO_HAVE__ARM_NEON__
+                   return vget_lane_u64(vreintrepret_u64_u8(v), 0);
+#              endif
                return v;
           }
 
@@ -75,13 +78,11 @@ namespace httpvo::simd
                return bits::andnot(constant::c80, (v ^ u.v) | (((v ^ u.v) & constant::c7f) + constant::c7f));
           }
 
-          inline constexpr v64_t splat_u64(const u8_t x) const
-          {
-               return x * constant::c01;
-          }
-
           inline constexpr simdv splat(const u8_t x) const
           {
+#              if HTTPVO_HAVE__ARM_NEON__
+                   return vdup_n_u8(x);
+#              endif
                return x * constant::c01;
           }
 
@@ -97,37 +98,21 @@ namespace httpvo::simd
           }
 
           template <u8_t a, u8_t b>
-          inline simdv cmpgt_lt(const u8_t _aa = 0, const u8_t _bb = 0) const
+          inline simdv cmpngt_lt() const
           {
                static_assert(a < 0x7f && b < 0x80);
 #              if HTTPVO_HAVE__ARM_NEON__
-                    if constexpr (sizeof(T) == 8)
-                    {
-                         uint8x8_t aa = vdup_n_u8(a);
-                         uint8x8_t bb = vdup_n_u8(b);
-                         return vand_u8(vcgt_u8(x, aa), vclt_u8(x, bb));
-                    }
+               uint8x8_t x = vsub_u8(v, vdup_n_u8(a));
+               return vcgt_u8(w, vdup_n_u8(b - a));
 #              endif
-               static constexpr v64_t aa = splat_u64(0x7f - a);
-               static constexpr v64_t bb = splat_u64(0x7f + b);
-               return (bb - (v & constant::c7f)) & (aa + (v & constant::c7f)) & bits::andnot(constant::c80, v);
+               static constexpr v64_t aa = splat(0x7f + a);
+               static constexpr v64_t bb = splat(0x7f - b);
+               return ((aa - (v & constant::c7f)) | (bb + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
-          template <u8_t a, u8_t b>
-          inline simdv cmpngt_lt(const u8_t _aa = 0, const u8_t _bb = 0) const
+          inline mask_t operator&(const mask_t m)
           {
-               static_assert(a < 0x7f && b < 0x80);
-#              if HTTPVO_HAVE__ARM_NEON__
-                    if constexpr (sizeof(T) == 8)
-                    {
-                         uint8x8_t aa = vdup_n_u8(a);
-                         uint8x8_t x = vsub_u8(v, vdup_n_u8(a));
-                         return vcgt_u8(x, vdup_n_u8(b - a));
-                    }
-#              endif
-               static constexpr v64_t aa = splat_u64(0x7f + a);
-               static constexpr v64_t bb = splat_u64(0x7f - b);
-               return ((aa - (v & constant::c7f)) | (bb + (v & constant::c7f))) & bits::andnot(constant::c80, v);
+               return to_bitmask() & m;
           }
      };
 }
