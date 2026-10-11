@@ -11,7 +11,7 @@ namespace httpvo::Implementation
 
     inline bool is_valid(u8_t i) { return i > 0x20 and i < 0x7f; }
 
-    inline status parse_single_char(const u8_t * const b, ReqLine& out, u64_t& tsp, const std::size_t run_size, const std::size_t i)
+    inline status parse_char(const u8_t * const b, ReqLine& out, u64_t& tsp, const std::size_t run_size, const std::size_t i)
     {
         const std::size_t n_i = i + 1;
         u8_t c   = b[i];
@@ -41,18 +41,18 @@ namespace httpvo::Implementation
         return -1;
     }
 
-    inline status parse_trailing_chars(const u8_t * const b, ReqLine& out, u64_t &tsp, std::size_t run_size, std::size_t i)
+    inline status parse_chars(const u8_t * const b, ReqLine& out, u64_t &tsp, std::size_t run_size, std::size_t i)
     {
         status s {0};
-        if ((s = parse_single_char(b, out, tsp, run_size, i+0)) < 1) return s;
-        if ((s = parse_single_char(b, out, tsp, run_size, i+1)) < 1) return s;
-        if ((s = parse_single_char(b, out, tsp, run_size, i+2)) < 1) return s;
-        if ((s = parse_single_char(b, out, tsp, run_size, i+3)) < 1) return stat;
-        if ((s = parse_single_char(b, out, tsp, run_size, i+4)) < 1) return s;
-        if ((s = parse_single_char(b, out, tsp, run_size, i+5)) < 1) return s;
-        if ((s = parse_single_char(b, out, tsp, run_size, i+6)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+0)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+1)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+2)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+3)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+4)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+5)) < 1) return s;
+        if ((s = parse_char(b, out, tsp, run_size, i+6)) < 1) return s;
         if constexpr (setup::no_vectorize)
-            return parse_single_char(b, out, tsp, run_size, i+7);
+            return parse_char(b, out, tsp, run_size, i+7);
         return s;
     }
 
@@ -64,9 +64,9 @@ namespace httpvo::Implementation
         status s{0};
         for (std::size_t i = 0; true; i += 16)
         {
-            if ((s = parse_trailing_chars(b, out, tsp, run_size, i+0)) < 1)
+            if ((s = parse_chars(b, out, tsp, run_size, i+0)) < 1)
                 return s;
-            if ((s = parse_trailing_chars(b, out, tsp, run_size, i+8)) < 1)
+            if ((s = parse_chars(b, out, tsp, run_size, i+8)) < 1)
                 return s;
         }
         return stat;
@@ -137,7 +137,7 @@ namespace httpvo::Implementation
         if constexpr (N > 8)
             return parse_line<8, false>(b, b_run, out, run_size, constant::cff, 0);
         // run_size < 8
-        return parse_trailing_chars(b, out, tsp, run_size, b_run - b);
+        return parse_chars(b, out, tsp, run_size, b_run - b);
     }
 
     // see test/scripts/generate_shuffle_table.py for table generation and comments.
