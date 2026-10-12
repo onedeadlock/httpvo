@@ -197,7 +197,7 @@ namespace httpvo::Implementation
     }
 
     template<simd::VWidth N, bool ISTRAIL>
-    inline status parse_16_32B(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    inline status parse_header(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
         static_assert(N == 16 or N == 32);
        

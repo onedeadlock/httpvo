@@ -132,7 +132,6 @@
 #    define HTTPVO_NO_COPY_TRAILS 0
 #endif
 
-// branch prediction
 #if 0
 #if  HTTPVO_HAVE_GNUC__
 #    define likely(x)   (__builtin_expect(!!(x), 1))

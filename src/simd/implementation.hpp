@@ -44,7 +44,7 @@ namespace httpvo::simd
                     __builtin_memcpy(&v, b, 8);
           }
 
-          inline operator mask_t(void) const
+          inline mask_t to_bitmask(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                return vget_lane_u64(vand_u64(vreinterpret_u64_u8(v), vcreate_u64(constant::c80)));
@@ -52,22 +52,9 @@ namespace httpvo::simd
                return v;
           }
 
-          static inline simdv load(const void * const b)
+          inline operator mask_t(void) const
           {
-               return simdv(b);
-          }
-
-          inline mask_t to_bitmask(void) const
-          {
-#              if HTTPVO_HAVE__ARM_NEON__
-                   return vget_lane_u64(vreintrepret_u64_u8(v), 0);
-#              endif
-               return v;
-          }
-
-          static inline v64_t countzero_bitmask(const mask_t m)
-          {
-               return bits::tzcnt(m) >> 3;
+               return to_bitmask();
           }
 
           inline simdv cmpeq(const simdv& u) const
@@ -87,7 +74,7 @@ namespace httpvo::simd
           }
 
           template <u8_t a>
-          inline simdv cmplt(const u8_t _aa=0) const
+          inline simdv cmplt(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                return vclt_u8(v, vdup_n_u8(a));
@@ -98,7 +85,7 @@ namespace httpvo::simd
           }
 
           template <u8_t a, u8_t b>
-          inline simdv cmpngt_lt() const
+          inline simdv cmpngt_lt(void) const
           {
                static_assert(a < 0x7f && b < 0x80);
 #              if HTTPVO_HAVE__ARM_NEON__
@@ -110,9 +97,19 @@ namespace httpvo::simd
                return ((aa - (v & constant::c7f)) | (bb + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
-          inline mask_t operator&(const mask_t m)
+          inline mask_t operator&(const mask_t m) const
           {
                return to_bitmask() & m;
+          }
+
+          static inline simdv load(const void * const b)
+          {
+               return simdv(b);
+          }
+
+          static inline v64_t countzero_bitmask(const mask_t m)
+          {
+               return bits::tzcnt(m) >> 3;
           }
      };
 }

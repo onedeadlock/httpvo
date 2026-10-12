@@ -16,7 +16,7 @@ namespace httpvo::simd
         simdv(__m128i u)       : lo{u}{}
         explicit simdv(const void *b)
         {
-            lo = _mm_loadu_si128(reinterpret_cast<const __m128i *>(b));;
+            lo = _mm_loadu_si128(reinterpret_cast<const __m128i *>(b));
         }
 
         TARGET("sse4")

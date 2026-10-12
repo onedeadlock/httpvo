@@ -1,7 +1,7 @@
 #ifndef HTTPVO_REQLINE_HPP
 #define HTTPVO_REQLINE_HPP
 #include "definition.hpp"
-#include "../simd/westmere/implementation.hpp"
+#include "../simd/implementation.hpp"
 
 namespace httpvo
 {

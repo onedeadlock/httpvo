@@ -10,29 +10,24 @@ namespace httpvo::simd::fallback
     template <int N> alignas(N) struct simdv;
 
     template<>
-    alignas(32) struct simdv<32>
+    alignas(16) struct simdv<16>
     {
-        static constexpr int spec   = INT64;
-        static constexpr int size   = 32;
-        static constexpr u64_t msb  = constant::msb_32;
-        static constexpr u64_t msb3 = constant::msb3_32;
+        static constexpr int bitpos = 1;
 
-        u64_t lo, xlo, hi, xhi;
+        simdv<8> lo, hi;
 
         simdv(void) {}
         simdv(const simdv &v) : lo{v.lo},
-                                xlo{v.xlo},
-                                hi{v.hi},
-                                xhi{v.xhi} {}
-        simdv(u64_t w, u64_t x, u64_t y, u64_t z) : lo {w},
-                                                    xlo{x},
-                                                    hi {y},
-                                                    xhi{z} {}
-
-        
-        inline bool is_zero(void)
+                                hi{v.hi}{}
+        simdv(u64_t x, u64_t y) : lo {x}, hi{y} {}
+        explicit simdv(const void * const b)
         {
-            return static_cast<bool>(lo | xlo | hi | xhi);
+            httpvo_memcopy(this, b, 16);
+        }
+        
+        inline bool is_zero(void) const
+        {
+            return static_cast<bool>(lo | hi);
         }
 
         inline u64_t to_bitmask(void)
@@ -42,22 +37,89 @@ namespace httpvo::simd::fallback
             return y << 16 | x;
         }
 
-        static inline simdv load(void *b)
+        static inline u64_t countzero_bitmask(const mask_t m)
         {
-            #ifdef LOAD_MEMCPY
-            simdv v;
-            if constexpr(__GNUC__)
-                __builtin_memcpy(&v, b, 32);
-            else
-                std::memcpy(&v, b, 32);
-            return v;
-            #else
-            u64_t *v = reinterpret_cast<u64_t *>(b);
-            return {v[0], v[1], v[2], v[4]};
-            #endif
+               return bits::tzcnt(m);
         }
 
-        static inline void zero(void) {}
+        template<u8_t a=0, u8_t b=0>
+        inline simdv cmpngt_lt(void)
+        {
+            return {lo.template cmpngt_lt<a, b>(), hi.template cmpngt_lt<a, b>()};
+        }
+
+        inline simdv shuf_table(const simdv& tab) const
+        {
+            assert(0);
+            return {0, 0, 0, 0};
+        }
+
+        inline simdv operator&(const simdv &v) const
+        {
+            return {lo & v.lo, xlo & v.xlo};
+        }
+
+        inline mask_t operator&(const mask_t m) const
+        {
+            return to_bitmask() & m;
+        }
+
+        inline simdv operator<<(const int r) const
+        {
+            return {lo << r, hi << r};
+        }
+
+        inline simdv operator|(const simdv& v) const
+        {
+            return {lo | v.lo, hi | v.hi};
+        }
+
+        inline simdv operator==(const simdv &v) const
+        {
+            return {lo == v.lo, hi == v.hi);
+        }
+
+        inline simdv operator<=(const simdv &v) const
+        {
+            return {0, 0};
+        }
+
+        inline simdv andnot(const simdv &v) const
+        {
+            // a & ~b
+            return {0, 0};
+        }
+
+        inline simdv setzero(void) const
+        {
+            return {0, 0};
+        }
+
+        inline operator mask_t(void) const
+        {
+            return to_bitmask();
+        }
+
+        static inline simdv load_tbl1(const void * const b)
+        {
+            assert(0);
+            return {0, 0};
+        }
+
+        static inline simdv andeqz(simdv&& u, simdv&& v)
+        {
+            // (a & v) == 0
+            return {0, 0};
+        }
+
+        static inline simdv load(const void * const b)
+        {
+            return simdv(b);
+        }
+
+        static inline void set_zero(void) {
+            return {0, 0, 0, 0}
+        }
 
         make_flat static inline simdv splat(u8_t v)
         {
@@ -75,18 +137,13 @@ namespace httpvo::simd::fallback
 
         make_flat static inline simdv cmp_zero(const simdv& v)
         {
-            return {common::_cmpeqz(v.lo ),
-                    common::_cmpeqz(v.xlo),
-                    common::_cmpeqz(v.hi ),
-                    common::_cmpeqz(v.xhi)};
+            return {lo == 0, hi == 0};
         }
 
         make_flat static inline simdv cmp_eq(const simdv& u, const simdv& v)
         {
-            return {common::_cmpeq(u.lo,  v.lo ),
-                    common::_cmpeq(u.xlo, v.xlo),
-                    common::_cmpeq(u.hi,  v.hi ),
-                    common::_cmpeq(u.xhi, v.xhi)};
+            return {lo == u
+            };
         }
 
         make_flat static inline simdv cmp_eq(const simdv& u, const simdv& v, const simdv& w)
