@@ -1,0 +1,123 @@
+#ifndef HTTPVO_SIMD_HASWELL_HPP
+#define HTTPVO_SIMD_HASWELL_HPP
+#include "../implementation.hpp"
+
+namespace httpvo::simd
+{
+    template<>
+    struct simdv<32>
+    {
+        static constexpr int bitpos = 1;
+
+        __m256i lo;
+
+        simdv(const simdv& v)  : lo{v.lo}{}
+        simdv(simdv&& v)       : lo{v.lo}{}
+        simdv(__m256i u)       : lo{u}{}
+        explicit simdv(const void *b)
+        {
+            lo = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));;
+        }
+
+        TARGET("sse4")
+        inline bool is_zero(void)
+        {
+            return _mm256_testz_si256(lo, lo);
+        }
+
+        TARGET("sse4")
+        inline u64_t to_bitmask(void) const
+        {
+            return _mm256_movemask_epi8(lo);
+        }
+
+        static inline u64_t countzero_bitmask(const mask_t m)
+        {
+               return bits::tzcnt(m);
+        }
+
+        template<u8_t a=0, u8_t b=0>
+        TARGET("sse4")
+        inline simdv cmpngt_lt(void)
+        {
+            __m256i x = _mm256_add_epi8(lo, _mm256_set1_epi8(static_cast<u8_t>(0x80 - a)));
+            return _mm256_cmpgt_epi8(x, _mm256_set1_epi8(static_cast<u8_t>((b - a) - 0x80)));
+        }
+
+        TARGET("sse4")
+        inline simdv shuf_table(const simdv& tab) const
+        {
+            return _mm256_shuffle_epi8(lo, tab.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator&(const simdv &v) const
+        {
+            return _mm256_and_si256(lo, v.lo);
+        }
+
+        TARGET("sse4")
+        inline mask_t operator&(const mask_t m) const
+        {
+            return to_bitmask() & m;
+        }
+
+        TARGET("sse4")
+        inline simdv operator<<(const int r) const
+        {
+            return _mm256_srli_si256(lo, r);
+        }
+
+        TARGET("sse4")
+        inline simdv operator|(const simdv& v) const
+        {
+            return _mm256_or_si256(lo, v.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator==(const simdv &v) const
+        {
+            return _mm256_cmpeq_epi8(lo, v.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator<=(const simdv &v) const
+        {
+            return _mm256_cmpeq_epi8(_mm256_min_epi8(lo, v.lo), lo);
+        }
+
+        TARGET("sse4")
+        inline simdv andnot(const simdv &v) const
+        {
+            // a & ~b
+            return _mm256_andnot_si256(v.lo, lo);
+        }
+
+        TARGET("sse4")
+        inline simdv setzero(void) const
+        {
+            return _mm256_setzero_si256();
+        }
+
+        TARGET("sse4")
+        inline operator mask_t(void) const
+        {
+            return _mm256_movemask_epi8(lo);
+        }
+
+        TARGET("sse4")
+        static inline simdv load_tbl1(const void * const b)
+        {
+            // load a 16B table
+            return {_mm256_loadu_si256(reinterpret_cast<const __m256i *>(b))};
+        }
+
+        TARGET("sse4")
+        static inline int andeqz(simdv&& u, simdv&& v)
+        {
+            // (a & v) == 0
+            return _mm256_testnzc_si256(u.lo, v.lo);
+        }
+    };
+}
+#endif // HTTPVO_SIMD_WESTMERE_HPP

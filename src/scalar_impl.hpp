@@ -1,7 +1,6 @@
 #ifndef HTTPVO_IMPLEMENTATION_SCALAR_HPP
 #define HTTPVO_IMPLEMENTATION_SCALAR_HPP
 #include "implementation.hpp"
-#include "simd/westmere/implementation.hpp"
 
 namespace httpvo::Implementation
 {
@@ -84,7 +83,7 @@ namespace httpvo::Implementation
         for (; b_run < stop; b_run += N)
         {
             simdv<N> v{b_run};
-            mask_t out_mask = mask & v.template cmpngt_lt<0x21, 0x7e>();
+            mask_t out_mask = v.template cmpngt_lt<0x21, 0x7e>() & mask;
             if (not out_mask) [[likely]]
             {
                 tsp = 0;

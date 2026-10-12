@@ -7,6 +7,13 @@
 #include <limits>
 #include <assert.h>
 
+#if __has_include(<immintrin.h>)
+#    include <immintrin.h>
+#elif __has_include(<arm_neon.h>)
+#    include <arm_neon.h>
+#endif
+
+
 #ifndef HTTPVO_DEBUG
 #    define HTTPVO_DEBUG 0
 #else
@@ -37,36 +44,32 @@
 #   define HTTPVO_HAVE_MSVC__ 0
 #endif
 
-#if defined(__AVX2__) || defined(__SSSE3__) || defined(__SSE4_2__) || defined(__SSE2__)
-#    if defined(__AVX2__)
-#        define HTTPVO_HAVE__AVX2__   1
-#    else
-#        define HTTPVO_HAVE__AVX2__   0
-#    endif
+#if defined(__AVX2__)
+#    define HTTPVO_HAVE__AVX2__   1
+#else
+#    define HTTPVO_HAVE__AVX2__   0
+#endif
 
-#    if defined(__SSE2__)
-#        define HTTPVO_HAVE__SSE2__   1
-#    else
-#        define HTTPVO_HAVE__AVX2__   0
-#    endif
+#if defined(__SSE2__)
+#    define HTTPVO_HAVE__SSE2__   1
+#else
+#    define HTTPVO_HAVE__AVX2__   0
+#endif
 
-#    if defined(__SSSE3__)
-#        define HTTPVO_HAVE__SSSE3__   1
-#    else
-#        define HTTPVO_HAVE__SSSE3__   0
-#    endif
+#if defined(__SSSE3__)
+#    define HTTPVO_HAVE__SSSE3__   1
+#else
+#    define HTTPVO_HAVE__SSSE3__   0
+#endif
 
-#    if defined(__SSE4_2__)
-#        define HTTPVO_HAVE__SSE4_2__   1
-#    else
-#        define HTTPVO_HAVE__SSE4_2__   0
-#    endif
-#    include <immintrin.h>
+#if defined(__SSE4_2__)
+#    define HTTPVO_HAVE__SSE4_2__   1
+#else
+#    define HTTPVO_HAVE__SSE4_2__   0
 #endif
 
 #if defined(__ARM_NEON)
 #    define HTTPVO_HAVE__ARM_NEON__ 1
-#    include <arm_neon.h>
 # else
 #    define HTTPVO_HAVE__ARM_NEON__ 0
 #endif

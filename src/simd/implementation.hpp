@@ -17,7 +17,7 @@ namespace httpvo::simd
 #    else
          static constexpr VWidth max = 32;
 #    endif
-     static constexpr VWidth min = 8;
+     static constexpr     VWidth min = 8;
 
      template<>
      struct simdv<8>
@@ -78,7 +78,7 @@ namespace httpvo::simd
                return bits::andnot(constant::c80, (v ^ u.v) | (((v ^ u.v) & constant::c7f) + constant::c7f));
           }
 
-          inline constexpr simdv splat(const u8_t x) const
+          inline constexpr v64_t splat(const u8_t x) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                    return vdup_n_u8(x);
