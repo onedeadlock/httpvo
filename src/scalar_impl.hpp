@@ -74,10 +74,11 @@ namespace httpvo::Implementation
     template<simd::VWidth N=8, bool ISTRAIL=0>
     inline status http::parse_line(u8_t * const b, u8_t *b_run, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp)
     {
+        static_assert(bits::is_power_of_two(N));
+
         if constexpr (setup::no_vectorize)
             return parse_line<0, 0>(b, b_run, out, run_size, mask, tsp);
 
-        static_assert(bits::is_power_of_two(N)); // N must be a power of 2
         const u8_t * const end  = b + run_size;
         const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
         for (; b_run < stop; b_run += N)

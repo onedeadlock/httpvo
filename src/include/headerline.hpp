@@ -12,7 +12,7 @@ namespace httpvo
             {
                 while (pos != end and common::is_whitespace(b[pos++]))
                     pass();
-                while (end and common::is_whitespace(b[end--]))
+                while (pos != end and common::is_whitespace(b[end--]))
                     pass();
                 return pos == end;
             }
