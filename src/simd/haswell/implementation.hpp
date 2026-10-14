@@ -115,12 +115,6 @@ namespace httpvo::simd
         }
 
         TARGET("avx2")
-        inline simdv operator>>(const int r) const
-        {
-            return _mm256_slli_si256(lo, r);
-        }
-
-        TARGET("avx2")
         static inline int andeqz(simdv&& u, simdv&& v)
         {
             // (a & v) == 0
