@@ -2,12 +2,12 @@
 #include "../../scalar_impl.hpp"
 int main(void)
 {
-    alignas(8) char header[] = "username: michael saviour\r\n";
+    alignas(8) char header[] = "username: michael saviour\r\n\r\n";
     std::size_t len = std::strlen(header);
     httpvo::Implementation::http parser;
     httpvo::header_view view {0};
     
-    httpvo::status s = parser.parse_header<16, 0>((httpvo::u8_t *)header, (httpvo::u8_t *)header, view, len, len, 0);
+    httpvo::status s = parser.parse_header<16>((httpvo::u8_t *)header, (httpvo::u8_t *)header, view, len, len, 0);
    
     if (s < 0)
     {

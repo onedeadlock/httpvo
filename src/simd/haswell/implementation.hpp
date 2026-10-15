@@ -47,7 +47,7 @@ namespace httpvo::simd
         TARGET("avx2")
         inline simdv shuf_table(const simdv& tab) const
         {
-            return _mm256_shuffle_epi8(lo, tab.lo);
+            return _mm256_shuffle_epi8(tab.lo, lo);
         }
 
         TARGET("avx2")
@@ -65,7 +65,7 @@ namespace httpvo::simd
         TARGET("avx2")
         inline simdv operator>>(const int r) const
         {
-            return _mm256_slli_si256(lo, r);
+            return _mm256_srli_epi64(lo, r);
         }
 
         TARGET("avx2")
@@ -84,6 +84,12 @@ namespace httpvo::simd
         inline simdv operator<=(const simdv &v) const
         {
             return _mm256_cmpeq_epi8(_mm256_min_epi8(lo, v.lo), lo);
+        }
+
+        TARGET("avx2")
+        inline simdv andeqz(const simdv& v)
+        {
+            return _mm256_cmpeq_epi8(_mm256_and_si256(lo, v.lo), _mm256_setzero_si256());
         }
 
         TARGET("avx2")
@@ -112,13 +118,6 @@ namespace httpvo::simd
             if (setup::debug)
                 assert(!(std::uintptr_t(b) & (16 - 1))); // must have an alignment of 16
             return _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(b)));
-        }
-
-        TARGET("avx2")
-        static inline int andeqz(simdv&& u, simdv&& v)
-        {
-            // (a & v) == 0
-            return _mm256_testnzc_si256(u.lo, v.lo);
         }
     };
 }

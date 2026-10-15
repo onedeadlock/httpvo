@@ -40,7 +40,7 @@ namespace httpvo::simd
         TARGET("sse4")
         inline simdv shuf_table(const simdv& tab) const
         {
-            return _mm_shuffle_epi8(lo, tab.lo);
+            return _mm_shuffle_epi8(tab.lo, lo);
         }
 
         TARGET("sse4")
@@ -58,7 +58,7 @@ namespace httpvo::simd
         TARGET("sse4")
         inline simdv operator>>(const int r) const
         {
-            return _mm_slli_si128(lo, r);
+            return _mm_srli_epi64(lo, r);
         }
 
         TARGET("sse4")
@@ -77,6 +77,12 @@ namespace httpvo::simd
         inline simdv operator<=(const simdv &v) const
         {
             return _mm_cmpeq_epi8(_mm_min_epi8(lo, v.lo), lo);
+        }
+
+        TARGET("sse4")
+        inline simdv andeqz(const simdv& v)
+        {
+            return _mm_cmpeq_epi8(_mm_and_si128(lo, v.lo), _mm_setzero_si128());
         }
 
         TARGET("sse4")
@@ -109,13 +115,6 @@ namespace httpvo::simd
         {
             // load a 16B table
             return _mm_loadu_si128(reinterpret_cast<const __m128i *>(b));
-        }
-
-        TARGET("sse4")
-        static inline simdv andeqz(simdv&& u, simdv&& v)
-        {
-            // (a & v) == 0
-            return (u & v) == u.setzero();
         }
     };
 }

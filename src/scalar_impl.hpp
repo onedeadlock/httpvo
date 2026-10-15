@@ -158,12 +158,11 @@ namespace httpvo::Implementation
         // since the control bytes overlap, we can reduce to a precomputed comparison instead of a range test. see /test/scripts/generate_shuffle_table2.py for my comments
         const simdv<N> CTRL_LO = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
         const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
-        if constexpr (setup::neon)
-        {
-             // we get 1.37x by skipping the '& LO_NIB'. We can because neon has a byte shift op.
-            return v.shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);    
-        }
         const simdv<N> LO_NIB  = simdv<N>::splat(0x0f);
+
+        if constexpr (setup::neon)
+            return (v & LO_NIB).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);    
+        
         return v.shuf_table(CTRL_LO) > ((v >> 4) & LO_NIB).shuf_table(CTRL_HI);
     }
 
@@ -172,12 +171,12 @@ namespace httpvo::Implementation
     {
         const simdv<N> NON_TCHAR_LO = simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 00);
         const simdv<N> NON_TCHAR_HI = simdv<N>::load_tbl1(NON_TCHAR_CLASS_LUT + 16);
+        const simdv<N> LO_NIB       = simdv<N>::splat(0x0f);
 
         if constexpr (setup::neon)
-            return simdv<N>::andeqz(v.shuf_table(NON_TCHAR_LO), (v >> 4).shuf_table(NON_TCHAR_HI));
-
-        const simdv<N> LO_NIB = simdv<N>::splat(0x0f);
-        return simdv<N>::andeqz(v.shuf_table(NON_TCHAR_LO), ((v >> 4) & LO_NIB).shuf_table(NON_TCHAR_HI));
+            return (v & LO_NIB).shuf_table(NON_TCHAR_LO).andeqz((v >> 4).shuf_table(NON_TCHAR_HI));
+        
+        return v.shuf_table(NON_TCHAR_LO).andeqz((v >> 4 & LO_NIB).shuf_table(NON_TCHAR_HI));
      }
 
     inline status is_end_of_line(u8_t * const b, const std::size_t rem)
@@ -187,7 +186,7 @@ namespace httpvo::Implementation
         if (rem > 3) [[likely]]
         {
             const u32_t v = common::_load_u32(b);
-            const i8_t isnot_eol = -( v != CRLF );
+            const i8_t isnot_eol = -( (v & 0xffffu) != CRLF );
             return {isnot_eol, v == CRLFCRLF};
         }
 
@@ -197,7 +196,7 @@ namespace httpvo::Implementation
         return {isnot_cr, status::unexpected_char};
     }
 
-    template<simd::VWidth N, bool ISTRAIL>
+    template<simd::VWidth N, bool ISTRAIL=0>
     [[nodiscard]] inline status http::parse_header(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
     {
         static_assert(N == 16 or N == 32);
@@ -215,6 +214,7 @@ namespace httpvo::Implementation
                 mask_t non_tchar = is_non_tchar(v);
                 if (not non_tchar)
                     continue;
+                printf("%llb\n", non_tchar);
                 const std::size_t offset = simdv<N>::countzero_bitmask(non_tchar);
                 if (b_run[offset] != COL) [[unlikely]]
                     return status::unexpected_char;
@@ -233,6 +233,7 @@ namespace httpvo::Implementation
                 return s;
             }
         }
+        puts("here");
         return status::expect_bytes;
     }
 }
