@@ -57,12 +57,6 @@ namespace httpvo::simd
         }
 
         TARGET("avx2")
-        inline mask_t operator&(const mask_t m) const
-        {
-            return to_bitmask() & m;
-        }
-
-        TARGET("avx2")
         inline simdv operator>>(const int r) const
         {
             return _mm256_srli_epi64(lo, r);
@@ -75,15 +69,51 @@ namespace httpvo::simd
         }
 
         TARGET("avx2")
+        inline simdv operator|(const int x) const
+        {
+            return _mm256_or_si256(lo, _mm256_set1_epi8(x));
+        }
+
+        TARGET("avx2")
+        inline simdv operator^(const simdv& v) const
+        {
+            return _mm256_xor_si256(lo, v.lo);
+        }
+
+        TARGET("avx2")
+        inline simdv operator^(const int x) const
+        {
+            return _mm256_xor_si256(lo, _mm256_set1_epi8(x));
+        }
+
+        TARGET("avx2")
         inline simdv operator==(const simdv &v) const
         {
             return _mm256_cmpeq_epi8(lo, v.lo);
         }
 
         TARGET("avx2")
+        inline simdv operator==(const int x) const
+        {
+            return _mm256_cmpeq_epi8(lo, _mm256_set1_epi8(x));
+        }
+
+        TARGET("avx2")
         inline simdv operator<=(const simdv &v) const
         {
             return _mm256_cmpeq_epi8(_mm256_min_epi8(lo, v.lo), lo);
+        }
+
+         TARGET("avx2")
+        inline simdv operator<=(const int x) const
+        {
+            return _mm256_cmpeq_epi8(_mm256_min_epi8(lo, _mm256_set1_epi8(x)), lo);
+        }
+
+        TARGET("avx2")
+        inline simdv operator>(const simdv &v) const
+        {
+            return _mm256_cmpgt_epi8(lo, v.lo);
         }
 
         TARGET("avx2")

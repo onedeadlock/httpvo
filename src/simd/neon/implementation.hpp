@@ -49,7 +49,7 @@ namespace httpvo::simd
         TARGET("neon")
         inline simdv shuf_table(const simdv& tab) const
         {
-            return vtbl1q_u8(lo, tab.lo);
+            return vqtbl1q_u8(lo, tab.lo);
         }
 
         TARGET("neon")
@@ -77,6 +77,12 @@ namespace httpvo::simd
         }
 
         TARGET("neon")
+        inline simdv operator^(const simdv& v) const
+        {
+            return veorq_u8(lo, v.lo);
+        }
+
+        TARGET("neon")
         inline simdv operator==(const simdv &v) const
         {
             return vceqq_u8(lo, v.lo);
@@ -86,6 +92,12 @@ namespace httpvo::simd
         inline simdv operator<=(const simdv &v) const
         {
             return vcleq_u8(lo, v.lo);
+        }
+
+        TARGET("neon")
+        inline simdv operator>(const simdv &v) const
+        {
+            return vcgtq_u8(lo, v.lo);
         }
 
         TARGET("neon")

@@ -196,7 +196,10 @@ namespace httpvo
         static constexpr u8_t sse_4_2 = HTTPVO_HAVE__SSE4_2__;
         static constexpr u8_t neon    = HTTPVO_HAVE__ARM_NEON__;
         static constexpr u8_t int_64  = 1;
-        
+
+        static constexpr bool arm64  = 0;
+        static constexpr bool arm32  = 0;
+        static constexpr bool x86_64 = 0;
 
         static constexpr bool support_unaligned = HTTPVO_HAVE_UNALIGNED;
         static constexpr bool little_endian     = HTTPVO_LITTLE_ENDIAN;
