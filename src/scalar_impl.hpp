@@ -81,7 +81,7 @@ namespace httpvo::Implementation
 
         if constexpr (setup::no_vectorize)
             return parse_line<0, 0>(b, b_run, out, run_size, mask, tsp);
-
+ 
         const u8_t * const end  = b + run_size;
         const u8_t * const stop = !ISTRAIL ? b + bits::align(run_size, N) : end;
         for (; b_run < stop; b_run += N)
@@ -238,5 +238,69 @@ namespace httpvo::Implementation
         }
         return status::expect_bytes;
     }
-}
+    
+    inline std::size_t is_valid_name_token_(const u8_t * const b)
+    {
+        static constexpr auto &x = tables::tchar_map;
+        std::size_t i = 0;
+        for (; i < 8 and x[b[i]]; i++) pass();
+        return i == 8;
+    }
+
+    inline bool is_valid_name_token_loop(const u8_t * const b, const std::size_t len)
+    {
+        static constexpr auto &x = tables::tchar_map;
+        std::size_t i = 0;
+        for (; i < len and x[b[i]]; i++) pass();
+        return i == len;
+    }
+    
+    make_flat inline bool is_valid_name_token(const u8_t * const b)
+    {
+        auto is_token = [](const u8_t * const b, const mask_t m){ return is_valid_name_token_loop(reinterpret_cast<const u8_t * const>(b) + m, 8 - m); };
+        if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
+        {
+            simdv<8> v{b};
+            mask_t outside = bits::andnot(constant::c80, v.ascii_fast_tchar()); // some other char, but may be valid
+            return not outside or is_token(b, simdv<8>::countzero_bitmask(outside));
+        }
+        return is_valid_name_token_(reinterpret_cast<const u8_t * const >(b));
+    }
+
+    make_flat inline bool is_valid_name(const u8_t * b, std::size_t len)
+    {
+        if constexpr (not setup::no_leading_space)
+            len -= common::is_whitespace(b[len - 1]);
+        const u8_t *end = b + bits::align(len, 8);
+        for (; b != end and is_valid_name_token(b); b += 8) pass();
+        const u64_t r = len % 8;
+        // fall back
+        if (b != end or not r)
+            return b == end;
+        return is_valid_name_token_loop(b, r);
+    }
+
+     template<simd::VWidth N, bool ISTRAIL=0>
+    [[nodiscard]] inline status http::parse_header(u8_t * const b, u8_t *b_run, header_view& out, const std::size_t in_size, const std::size_t run_size, const std::size_t r)
+    {  
+        static constexpr u8_t COL = '\x3a';
+        const u8_t * const stop = b + (not ISTRAIL ? bits::align(run_size, N) : run_size);
+        bool parsing_value = false;
+        for (; b_run < stop; b_run += N)
+        {
+                // TODO 
+                bool is_valid_header_name = is_valid_name(b, run_size);
+                if (not is_valid_header_name)
+                    continue;
+                if (mask_t control_char = is_control_char(v))
+                {
+                    status s = is_end_of_line(b_run + offset, run_size - at);
+                    if (s < 0) [[unlikely]]
+                        return s;
+                    return s;
+                }
+        }
+        return status::expect_bytes;
+    }
+} // NAMESPACE::HTTVO
 #endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP

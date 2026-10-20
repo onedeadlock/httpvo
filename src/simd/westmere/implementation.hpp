@@ -31,22 +31,22 @@ namespace httpvo::simd
 
         template<int a=0, int b=0>
         TARGET("sse4")
-        inline simdv cmpngt_lt()
+        inline simdv cmpngt_lt(void)
         {
             __m128i x = _mm_add_epi8(lo, _mm_set1_epi8(static_cast<int>(0x80 - a)));
             return _mm_cmpgt_epi8(x, _mm_set1_epi8(static_cast<int>((b - a) - 0x80)));
         }
 
         TARGET("sse4")
-        inline simdv shuf_table(const simdv& tab) const
+        inline simdv cmpngt_lt_man(const simdv a, const simdv b)
         {
-            return _mm_shuffle_epi8(tab.lo, lo);
+            return _mm_cmpgt_epi8(_mm_add_epi8(lo, a.lo), b.lo);
         }
 
         TARGET("sse4")
-        inline simdv operator&(const simdv &v) const
+        inline simdv shuf_table(const simdv& tab) const
         {
-            return _mm_and_si128(lo, v.lo);
+            return _mm_shuffle_epi8(tab.lo, lo);
         }
 
         TARGET("sse4")
@@ -62,21 +62,9 @@ namespace httpvo::simd
         }
 
         TARGET("sse4")
-        inline simdv operator|(const simdv& v) const
-        {
-            return _mm_or_si128(lo, v.lo);
-        }
-
-        TARGET("sse4")
         inline simdv operator|(const int x) const
         {
             return _mm_or_si128(lo, _mm_set1_epi8(x));
-        }
-
-        TARGET("sse4")
-        inline simdv operator^(const simdv& v) const
-        {
-            return _mm_xor_si128(lo, v.lo);
         }
 
         TARGET("sse4")
@@ -86,21 +74,9 @@ namespace httpvo::simd
         }
 
         TARGET("sse4")
-        inline simdv operator==(const simdv &v) const
-        {
-            return _mm_cmpeq_epi8(lo, v.lo);
-        }
-
-        TARGET("sse4")
         inline simdv operator==(const int x) const
         {
             return _mm_cmpeq_epi8(lo, _mm_set1_epi8(x));
-        }
-
-        TARGET("sse4")
-        inline simdv operator<=(const simdv &v) const
-        {
-            return _mm_cmpeq_epi8(_mm_min_epi8(lo, v.lo), lo);
         }
 
         TARGET("sse4")

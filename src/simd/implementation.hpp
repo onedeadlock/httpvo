@@ -57,7 +57,7 @@ namespace httpvo::simd
                return to_bitmask();
           }
 
-          inline simdv cmpeq(const simdv& u) const
+          inline simdv cmpeq(const simdv u) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                    return vceq_u8(v, u.v);
@@ -65,7 +65,7 @@ namespace httpvo::simd
                return bits::andnot(constant::c80, (v ^ u.v) | (((v ^ u.v) & constant::c7f) + constant::c7f));
           }
 
-          inline constexpr v64_t splat(const u8_t x) const
+          static inline constexpr v64_t splat(const int x)
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                    return vdup_n_u8(x);
@@ -89,17 +89,48 @@ namespace httpvo::simd
           {
                static_assert(a < 0x7f && b < 0x80);
 #              if HTTPVO_HAVE__ARM_NEON__
-               uint8x8_t x = vsub_u8(v, vdup_n_u8(a));
-               return vcgt_u8(w, vdup_n_u8(b - a));
+                    uint8x8_t x = vsub_u8(v, vdup_n_u8(a));
+                    return vcgt_u8(w, vdup_n_u8(b - a));
 #              endif
                static constexpr v64_t aa = splat(0x7f + a);
                static constexpr v64_t bb = splat(0x7f - b);
                return ((aa - (v & constant::c7f)) | (bb + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
-          inline mask_t operator&(const mask_t m) const
+          inline simdv ascii_letters(void) const
           {
-               return to_bitmask() & m;
+#              if HTTPVO_HAVE__ARM_NEON__
+                    assert(0);
+#              else
+                    return (constant::Z - (v & constant::AZ_const)) & (constant::A + (v & constant::AZ_const)) & bits::andnot(constant::c80, v);
+#              endif
+          }
+
+          inline simdv ascii_numbers(void)
+          {
+               const simdv x = v ^ constant::c30;
+               return x.cmplt<10>();
+          }
+
+          inline simdv ascii_hyphen(void)
+          {
+               return cmpeq(constant::hyphen);
+          }
+
+          inline mask_t ascii_fast_tchar(void)
+          {
+               return ascii_letters() | ascii_numbers() | ascii_hyphen();
+          }
+
+          inline u64_t non_printable(void)
+          {
+#              if HTTPVO_HAVE__ARM_NEON__
+                    assert(0);
+#              else
+                    // Non printable characters here are 0x7f (DEL) or characters below 0x20 (sp)
+                    static constexpr u64_t u = constant::c80 | constant::c20;
+                    return (u - (((v & constant::c7f) + constant::c01) & constant::c7f)) & bits::andnot(constant::c80, v);
+#              endif
           }
 
           static inline simdv load(const void * const b)
