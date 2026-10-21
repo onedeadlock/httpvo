@@ -16,7 +16,7 @@ namespace httpvo::simd
         simdv(__m256i u)       : lo{u}{}
         explicit simdv(const void *b)
         {
-            lo = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));;
+            lo = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));
         }
 
         TARGET("avx2")

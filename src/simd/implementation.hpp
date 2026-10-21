@@ -106,23 +106,23 @@ namespace httpvo::simd
 #              endif
           }
 
-          inline simdv ascii_numbers(void)
+          inline simdv ascii_numbers(void) const
           {
                const simdv x = v ^ constant::c30;
                return x.cmplt<10>();
           }
 
-          inline simdv ascii_hyphen(void)
+          inline simdv ascii_hyphen(void) const
           {
                return cmpeq(constant::hyphen);
           }
 
-          inline mask_t ascii_fast_tchar(void)
+          inline mask_t ascii_fast_tchar(void) const
           {
                return ascii_letters() | ascii_numbers() | ascii_hyphen();
           }
 
-          inline u64_t non_printable(void)
+          inline u64_t non_printable(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                     assert(0);

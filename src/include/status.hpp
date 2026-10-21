@@ -4,28 +4,35 @@ namespace httpvo
 {
     struct status
     {
-        enum : i8_t {
-            expect_bytes     =  1,
+        enum : int {
+            expect_bytes     =  -1,
             complete         =  0,
-            error            = -1,
-            overrun_error    = -1,
-            expect_line_feed = -2,
-            unexpected_char  = -3,
-            bad_whitespace   = -4
+            error            =  1,
+            overrun_error    =  1,
+            expect_line_feed =  2,
+            unexpected_char  =  3,
+            bad_whitespace   =  4,
+            expected_end_of_line = 5
         };
 
-        i8_t stat = 0;
-        i8_t code = 0;
+        struct statat_t {
+            int stat;
+            std::size_t at;
+            constexpr statat_t(int s=0, std::size_t a=0) : stat{s}, at{a} {};
+            inline constexpr statat_t(const statat_t &s) : stat{s.stat}, at{s.at} {};
+            inline operator bool(void) const
+            {
+                return bool(stat);
+            }
+        };
 
-        inline constexpr status(i8_t s) : stat{s} {}
-        inline constexpr status(i8_t s, i8_t e) : stat{s}, code{e} {}
+        int stat = 0;
+        int code = 0;
 
-        inline void operator=(const i8_t s)
-        {
-            stat = s;
-        }
+        inline constexpr status(int s) : stat{-s} {}
+        inline constexpr status(int s, int e) : stat{-s}, code{-e} {}
 
-        inline bool operator==(i8_t s) const
+        inline bool operator==(int s) const
         {
             return stat == s;
         }
@@ -35,7 +42,7 @@ namespace httpvo
             return stat == s.stat;
         }
 
-        inline bool operator!=(i8_t s) const
+        inline bool operator!=(int s) const
         {
             return stat != s;
         }
@@ -60,7 +67,7 @@ namespace httpvo
             return stat < s;
         }
 
-        inline operator i8_t(void) const
+        inline operator int(void) const
         {
             return stat;
         }
