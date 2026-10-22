@@ -5,12 +5,6 @@
 namespace httpvo::Implementation
 {
     using namespace simd;
-    static constexpr u8_t CR  = '\xd';
-    static constexpr u8_t LF  = '\xa';
-    static constexpr u8_t TAB = '\x9';
-    static constexpr u8_t DEL = '\x7f';
-    static constexpr u8_t COL = '\x3a';
-    static constexpr u8_t NON_PRINTABLE_MAX = '\x19';
 
     enum Character : u8_t {
         HorizontalTab  = '\x09',
