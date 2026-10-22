@@ -71,7 +71,7 @@ namespace httpvo::Implementation
     }
 
     template<>
-    inline status http::parse_line<0, 0>(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask [[maybe_unused]], u64_t tsp)
+    inline status http::parse_line<0, 0>(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask [[maybe_unused]], u64_t tsp) noexcept
     {
         // TODO: OPTIMIZE THIS FUNCTION
         status s{0};
@@ -210,7 +210,7 @@ namespace httpvo::Implementation
         return _is_not_end_of_line;
     }
 
-    inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem)
+    inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
         if constexpr (setup::end_of_line_is_line_feed)
             pass(); // TODO
@@ -355,7 +355,7 @@ namespace httpvo::Implementation
     }
 
     template<>
-    [[nodiscard]] inline status http::parse_header<0>(u8_t * const b, u8_t *b_run [[maybe_unused]], header_view& out, const std::size_t in_size [[maybe_unused]], const std::size_t run_size)
+    [[nodiscard]] inline status http::parse_header<0>(u8_t * const b, u8_t *b_run [[maybe_unused]], header_view& out, const std::size_t in_size [[maybe_unused]], const std::size_t run_size) noexcept
     {  
         const u8_t * const end = b + bits::align(run_size, 8);
         const std::size_t n_offset = is_valid_name(b, end, run_size);
