@@ -26,13 +26,13 @@ namespace httpvo::Implementation
     public:
         http(void) : at_start_line{0}, end_of_parse{0} {}
         template <simd::VWidth N, bool ISTRAIL>
-        status parse_line(u8_t *, u8_t *, ReqLine &, const std::size_t, const simd::mask_t, u64_t);
+        status parse_line(u8_t *, u8_t *, ReqLine &, const std::size_t, const simd::mask_t, u64_t) noexcept;
         template <simd::VWidth N, bool ISTRAIL>
-        inline status parse_header(u8_t *, u8_t *, header_view&, const std::size_t, const std::size_t, const std::size_t);
+        inline status parse_header(u8_t *, u8_t *, header_view&, const std::size_t, const std::size_t) noexcept;
         private:
         bool at_start_line;
         bool end_of_parse;
-        status is_end_of_line(u8_t * const, const std::size_t);
+        int is_not_end_of_line(const u8_t * const, const std::size_t) noexcept;
     };
 }
 #endif //IMPLEMENTATION_HPPc

@@ -7,8 +7,8 @@ namespace httpvo
         enum : int {
             expect_bytes     =  -1,
             complete         =  0,
+            excess           =  0,
             error            =  1,
-            overrun_error    =  1,
             expect_line_feed =  2,
             unexpected_char  =  3,
             bad_whitespace   =  4,

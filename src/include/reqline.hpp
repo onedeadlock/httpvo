@@ -98,12 +98,6 @@ namespace httpvo
             return st == end;
         }
 
-        inline int add_len(const std::size_t len)
-        {
-            req[st] += len;
-            return (st += i) != end;
-        }
-
         inline int advance(const std::size_t len)
         {
             req[st] += len;
@@ -122,11 +116,12 @@ namespace httpvo
 
         inline int version_is_http_1_mask(u64_t v)
         {
-            if constexpr (not setup::little_endian)
+            if constexpr (setup::little_endian)
+                return not ((v & 0x00ffffffffffffffULL) ^ 0x002e312f50545448ULL);
             {
                 // TODO: Handle Big Endianess
                 if constexpr (setup::debug)
-                    std::cerr << "<" << __FILE__ << ":" << __func__ << ":" << __LINE__ << "> " << "Warn fallback - BIG ENDIAN" << std::endl;
+
                 return version_is_http_1_rd(reinterpret_cast<const u8_t *>(&v));
             }
             return not ((v & 0x00ffffffffffffffULL) ^ 0x002e312f50545448ULL);
@@ -139,10 +134,9 @@ namespace httpvo
 
         inline bool version_is_http_1(const u8_t * const b)
         {
-            if constexpr (setup::optimize_for_most_case or setup::support_unaligned)
-                return version_is_http_1_mask(simd::simdv<8>::load(b)) and set_minor_version(b[7]);
-            if (std::uintptr_t(b) & (8 - 1))
-                return version_is_http_1_mask(reinterpret_cast<const u64_t *>(b)[0]) and set_minor_version(b[7]);
+            if constexpr (not setup::no_vectorize and setup::little_endian)
+                return simd::simdv<8>::testmask_u64(b, 0x00ffffffffffffffULL, 0x002e312f50545448ULL) and set_minor_version(b[7]);
+            
             return version_is_http_1_rd(b) and set_minor_version(b[7]);
         }
 

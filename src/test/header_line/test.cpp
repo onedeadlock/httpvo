@@ -7,7 +7,7 @@ int main(void)
     httpvo::Implementation::http parser;
     httpvo::header_view view {0};
     
-    httpvo::status s = parser.parse_header<16>((httpvo::u8_t *)header, (httpvo::u8_t *)header, view, len, len, 0);
+    httpvo::status s = parser.parse_header<16>((httpvo::u8_t *)header, (httpvo::u8_t *)header, view, len, len);
    
     if (s < 0)
     {
@@ -17,7 +17,7 @@ int main(void)
 
     std::cout << header[11] << std::endl;
     std::cout << (int)s.stat << std::endl;
-    std::cout << view.name.pos  << ' ' << view.name.end  << std::endl;
-    std::cout << view.value.pos << ' ' << view.value.end << std::endl;
+    std::cout << view.name_pos  << ' ' << view.name_end  << std::endl;
+    std::cout << view.value_pos << ' ' << view.value_end << std::endl;
     return 0;
 }
