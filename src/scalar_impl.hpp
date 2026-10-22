@@ -132,15 +132,12 @@ namespace httpvo::Implementation
             }
             tsp = bool(tsp) << (simdv<N>::bitpos - 1);
         }
-        if constexpr (not ISTRAIL)
+        if (run_size > (N - 1)) [[likely]]
         {
-            if (run_size > (N - 1))
-            {
-                // process trailing bytes by overlapping last read bytes with the remaining bytes
-                const std::size_t r = N - (run_size & (N - 1));
-                const std::size_t s = r * simdv<N>::bitpos;
-                return parse_line<N, true>(b, b_run - r, out, run_size, constant::cff << s, tsp << s);
-            }
+            // process trailing bytes by overlapping last read bytes with the remaining bytes
+            const std::size_t r = N - (run_size & (N - 1));
+            const std::size_t s = r * simdv<N>::bitpos;
+            return parse_line<N, true>(b, b_run - r, out, run_size, constant::cff << s, tsp << s);
         }
         // run_size < N
         if constexpr (N > 8)
@@ -245,40 +242,41 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
     
-    static constexpr u8_t NAME_TCHAR_TAB[256]{
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
-        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // 10 - name token; 11 = value token
+    static constexpr u8_t TCHAR_LUT[256]{
+        00, 00, 00, 00, 00, 00, 00, 00, 10, 00, 00, 00, 00, 00, 00, 00,
+        00, 00, 00, 00, 00, 00, 00, 00, 00, 10, 10, 10, 10, 10, 10, 10,
+        10, 11, 10, 11, 11, 11, 11, 11, 10, 10, 11, 11, 10, 11, 11, 10,
+        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 10, 10, 10, 10, 10, 10,
+        10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 10, 10, 10, 11, 11,
+        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 10, 11, 10, 00, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
 
     inline status::statat_t is_valid_name_token_(const u8_t * const b)
     {
         std::size_t at = 0;
-        for (;  at < 8 and NAME_TCHAR_TAB[b[at]]; at++) pass();
+        for (;  at < 8 and TCHAR_LUT[b[at]] & 1; at++) pass();
         return {at < 8, at};
     }
 
     inline status::statat_t is_valid_name_token_loop(const u8_t * const b, const std::size_t end, size_t at)
     {
-        for (;  at < end and NAME_TCHAR_TAB[b[at]]; at++) pass();
+        for (;  at < end and TCHAR_LUT[b[at]] & 1; at++) pass();
         return {at < end, at};
     }
 
     make_flat inline status::statat_t is_valid_name_token(const u8_t * const b)
     {
-        if constexpr (not setup::optimize_for_most_case and not setup::no_vectorize)
+        if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
         {
             const simdv<8> v{b};
             if (const mask_t outside = bits::andnot(constant::c80, v.ascii_fast_tchar())) [[unlikely]] // some other char that is not A-Z0-9 or -, but may be valid
@@ -290,32 +288,54 @@ namespace httpvo::Implementation
 
     make_flat inline status::statat_t is_valid_name(const u8_t * const b, const u8_t * const end, const std::size_t len)
     {
-        for (const u8_t *run = b; run < end; run += 8)
+        for (const u8_t *p = b; p < end; p += 8)
         {
-            if (const status::statat_t s = is_valid_name_token(run))
-                return {s.stat, static_cast<std::ptrdiff_t>(run - b) + s.at};
+            if (status::statat_t s = is_valid_name_token(p))
+                return s += static_cast<std::ptrdiff_t>(p - b);
         }
         if (const std::size_t r = len % 8)
             return is_valid_name_token_loop(b, len - r, len);
         return {0, len};
     }
 
+    inline std::size_t is_valid_value_token_loop(const u8_t *const b, const size_t len)
+    {
+        for (std::size_t at = 0; at < len; at++)
+        {
+            if (not TCHAR_LUT[b[at]])
+                return at;
+        }
+        return 0;
+    }
+
+    inline std::size_t is_valid_value_token(const u8_t *const b)
+    {
+        if constexpr (setup::no_vectorize)
+            return is_valid_value_token_loop(b, 8);
+        if (const mask_t offset = simdv<8>(b).non_printable())
+            return simdv<8>::countzero_bitmask(offset);
+        return 0;
+    }
+
     make_flat inline status::statat_t is_valid_value(const u8_t * const b, const u8_t * const end, const std::size_t len)
     {
-        if constexpr (not setup::no_vectorize)
-            return 0;
-        for (const u8_t *run = b; run < end; run += 8)
+        for (const u8_t *p = b; p < end; p += 8)
         {
-            const simdv<8> v(b);
-            if (const mask_t offset = v.non_printable())
-                return {1, static_cast<std::ptrdiff_t>(run - end) + simdv<8>::countzero_bitmask(offset)};
+            if (const std::size_t offset = is_valid_value_token(p))
+                return {1, static_cast<std::ptrdiff_t>(p - b) + offset};
         }
-        if (end != (b + len) and len > 8)
+        if (const std::size_t r = len % 8) [[likely]]
         {
-            // TODO: mask load
+            if (len > 8) [[likely]]
+            {
+                const u8_t * const p = end - (8 - r);
+                if (const std::size_t offset = is_valid_value_token(p))
+                    return {1, static_cast<std::ptrdiff_t>(p - b) + offset};
+                return {0, len};
+            }
+            return is_valid_value_token_loop(end - r, r);
         }
-        // TODO: fallback
-        return 0;
+        return {0, len};
     }
 
     template<>
@@ -332,9 +352,9 @@ namespace httpvo::Implementation
         out.name.end = at;
 
         out.value.pos = at + 1;
-        s = is_valid_value(b + at + 1, end, run_size - at);
+        s = is_valid_value(b + (at + 1), end, run_size - at);
         if (run_size == s.at) 
-            return status::unexpected_char;
+            return status::expect_bytes;
         // TODO: end of line check
         out.value.end = s.at;
         return out.value.commit(reinterpret_cast<const u8_t *>(b));

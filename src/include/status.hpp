@@ -20,6 +20,13 @@ namespace httpvo
             std::size_t at;
             constexpr statat_t(int s=0, std::size_t a=0) : stat{s}, at{a} {};
             inline constexpr statat_t(const statat_t &s) : stat{s.stat}, at{s.at} {};
+            
+            inline statat_t& operator+=(const std::size_t _at)
+            {
+                at += _at;
+                return *this;
+            }
+            
             inline operator bool(void) const
             {
                 return bool(stat);
