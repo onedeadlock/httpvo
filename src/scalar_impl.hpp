@@ -238,7 +238,7 @@ namespace httpvo::Implementation
                 const u8_t * const q = p + simdv<N>::countzero_bitmask(non_tchar);
                 if (q[0] != Character::Colon) [[unlikely]]
                     return status::unexpected_char;
-                out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
+                out.set_name_end(static_cast<std::ptrdiff_t>(q - b), nullptr);
                 parsing_value = true;
             }
             if (mask_t control_char = is_control_char(v))
@@ -253,7 +253,7 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
     
-    // 10 - name token; 11 = value token
+    // 2 - name token; 3 = value token
     static constexpr u8_t TCHAR_LUT[256]{
         0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2,
@@ -274,78 +274,69 @@ namespace httpvo::Implementation
 
     inline std::size_t is_valid_name_token_(const u8_t * const b)
     {
-        std::size_t at = 0;
-        for (; at < 8 and TCHAR_LUT[b[at]] & 1; at++) pass();
-        return at;
+        std::size_t i = 0;
+        for (; i < 8 and TCHAR_LUT[b[i]] & 1; i++) pass();
+        return i;
     }
 
-    inline std::size_t is_valid_name_token_l(const u8_t * const b, const std::size_t end, size_t at)
+    inline std::size_t is_valid_name_token_l(const u8_t * const b, const std::size_t i, std::size_t len)
     {
-        for (; at < end and TCHAR_LUT[b[at]] & 1; at++) pass();
-        return at;
+        for (std::size_t j = i; j < len and TCHAR_LUT[b[j]] & 1; j++) pass();
+        return j;
     }
 
     make_flat inline std::size_t is_valid_name_token(const u8_t * const b)
     {
-        auto fb_valid_token = [](const u8_t *const b, const std::size_t off)
-        { return is_valid_name_token_l(b, 8 - off, off); };
         if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
         {
             const simdv<8> v{b};
-            if (const mask_t outside = bits::andnot(constant::c80, v.ascii_fast_tchar())) [[unlikely]] // some other char that is not A-Z0-9 or -, but may be valid
-                return fb_valid_token(b, simdv<8>::countzero_bitmask(outside));
+            if (const mask_t outside = v.ascii_fast_tchar() ^ constant::c80) [[unlikely]] // some other char that is not A-Z0-9 or -, but may be valid
+                return is_valid_name_token_l(b, simdv<8>::countzero_bitmask(outside), 8);
             return 8;
         }
         return is_valid_name_token_(b);
     }
 
-    make_flat inline std::size_t is_valid_name(const u8_t * const b, const u8_t * const end, const std::size_t len)
+    make_flat inline std::size_t is_valid_name(const u8_t * const b, const std::size_t len)
     {
+        if (len < 8) return is_valid_token_l(b, 0, len);
+
+        const u8_t * const end = b + (len - 8);
         for (const u8_t *p = b; p < end; p += 8)
         {
             if (std::size_t s = is_valid_name_token(p); s < 8)
                 return s + static_cast<std::ptrdiff_t>(p - b);
         }
-        if (const std::size_t r = len % 8)
-            return is_valid_name_token_l(b, len - r, len);
-        return len;
+        return is_valid_name_token(end) + (len - 8);
     }
 
-    inline std::size_t is_valid_value_token_l(const u8_t *const b, const size_t len)
+    inline std::size_t is_valid_value_token_l(const u8_t *const b, const std::size_t i, const std::size_t len)
     {
-        std::size_t at = 0;
-        for (; at < len and TCHAR_LUT[b[at]]; at++) pass();
-        return at;
+        for (std::size_t j = i; j < len and TCHAR_LUT[b[j]]; j++) pass();
+        return j;
     }
 
     inline std::size_t is_valid_value_token(const u8_t *const b)
     {
         if constexpr (setup::no_vectorize)
-            return is_valid_value_token_l(b, 8);
+            return is_valid_value_token_l(b, 0, 8);
         if (const mask_t offset = simdv<8>(b).non_printable_andn_tab())
             return simdv<8>::countzero_bitmask(offset);
         return 8;
     }
 
-    make_flat inline std::size_t is_valid_value(const u8_t * const b, const u8_t *p, const u8_t * const end, const std::size_t len)
+    make_flat inline std::size_t is_valid_value(const u8_t * const b, const std::size_t i, const std::size_t len)
     {
-        for (; p < end; p += 8)
+        if (len < 8) return is_valid_token_l(b, i, len);
+
+        const u8_t * const end = b + (len - 8);
+        for (const u8 *p = b + i; p < end; p += 8)
         {
             if (const std::size_t offset = is_valid_value_token(p); offset < 8)
                 return static_cast<std::ptrdiff_t>(p - b) + offset;
         }
-        if (const std::size_t r = len % 8) [[likely]]
-        {
-            if (len > 8) [[likely]]
-            {
-                const u8_t * const q = end - (8 - r);
-                if (const std::size_t offset = is_valid_value_token(q); offset < 8)
-                    return static_cast<std::ptrdiff_t>(q - b) + offset;
-                return len;
-            }
-            return is_valid_value_token_l(end - r, r);
-        }
-        return len;
+        // this is safe: name tokens are a subset of value tokens
+        return is_valid_value_token(end) + (len - 8);
     }
 
     template<>
@@ -360,7 +351,7 @@ namespace httpvo::Implementation
             return status::unexpected_char;
         out.set_name_end(n_offset, nullptr);
         
-        const size_t v_offset = is_valid_value(b, b + n_offset, end, run_size);
+        const size_t v_offset = is_valid_value(b, n_offset, run_size);
         if (v_offset == run_size)
             return status::expect_bytes;
         if (is_not_end_of_line(b + v_offset, run_size - v_offset))
