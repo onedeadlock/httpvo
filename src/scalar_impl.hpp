@@ -16,137 +16,15 @@ namespace httpvo::Implementation
         Delete         = '\x7f',
     };
 
-    inline bool is_valid(u8_t i) { return i > Character::Space and i < Character::Delete; }
-
-    inline status parse_char(const u8_t * const b, ReqLine& out, u64_t& tsp, const std::size_t run_size, const std::size_t i)
+    inline bool is_whitespace(const int c)
     {
-        // TODO: status sign changes: fix return values
-        const std::size_t n_i = i + 1;
-        u8_t c   = b[i];
-        if (is_valid(c)) [[likely]]
-        {
-            tsp = false;
-            return {n_i < run_size, status::expect_bytes};
-        }
-        if (common::is_whitespace(c))
-        {
-            if (tsp) [[unlikely]]
-                return -1;
-            tsp = true;
-            return {out.advance(i) and n_i < run_size, status::bad_whitespace};
-        }
-        if (Character::CarriageReturn == c)
-        {
-            if (n_i == run_size)
-                return {0, status::expect_line_feed};
-            c = b[n_i];
-        }
-        if (Character::LineFeed == c)
-        {
-            out.advance(i);
-            return out.set_version(b);
-        }
-        return status::unexpected_char;
+        return c == Character::Space or c == Character::HorizontalTab;
     }
 
-    inline status parse_chars(const u8_t * const b, ReqLine& out, u64_t &tsp, std::size_t run_size, std::size_t i)
+    inline bool is_in_range(int c)
     {
-        status s {0};
-        if ((s = parse_char(b, out, tsp, run_size, i+0)) < 1) return s;
-        if ((s = parse_char(b, out, tsp, run_size, i+1)) < 1) return s;
-        if ((s = parse_char(b, out, tsp, run_size, i+2)) < 1) return s;
-        if ((s = parse_char(b, out, tsp, run_size, i+3)) < 1) return s;
-        if ((s = parse_char(b, out, tsp, run_size, i+4)) < 1) return s;
-        if ((s = parse_char(b, out, tsp, run_size, i+5)) < 1) return s;
-        if ((s = parse_char(b, out, tsp, run_size, i+6)) < 1) return s;
-        if constexpr (setup::no_vectorize)
-            return parse_char(b, out, tsp, run_size, i+7);
-        return s;
-    }
-
-    template<>
-    inline status http::parse_line<0, 0>(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask [[maybe_unused]], u64_t tsp) noexcept
-    {
-        // TODO: OPTIMIZE THIS FUNCTION
-        status s{0};
-        for (std::size_t i = 0; true; i += 16)
-        {
-            if ((s = parse_chars(b, out, tsp, run_size, i+0)) < 1)
-                return s;
-            if ((s = parse_chars(b, out, tsp, run_size, i+8)) < 1)
-                return s;
-        }
-        return s;
-    }
-
-    template<simd::VWidth N=8, bool ISTRAIL=0>
-    [[nodiscard]] inline status http::parse_line(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
-    {
-        static_assert(bits::is_power_of_two(N));
-
-        if constexpr (setup::no_vectorize)
-            return parse_line<0, 0>(b, p, out, run_size, mask, tsp);
- 
-        const u8_t * const end  = b + run_size;
-        const u8_t * const stop = not ISTRAIL ? b + bits::align(run_size, N) : end;
-        for (; p < stop; p += N)
-        {
-            simdv<N> v{p};
-            mask_t out_mask = v.template cmpngt_lt<0x21, 0x7e>().to_bitmask() & mask;
-            if (not out_mask) [[likely]]
-            {
-                tsp = 0;
-                continue;
-            }
-            for (; out_mask; out_mask = bits::clear_least_set_bit(out_mask))
-            {
-                const u8_t * const q = p + simdv<N>::countzero_bitmask(out_mask);
-                const u8_t c = q[0];
-                if (common::is_whitespace(c)) [[likely]]
-                {
-                    if (tsp & out_mask) [[unlikely]]
-                    {
-                        if constexpr (setup::no_multispace)
-                            return status::bad_whitespace;
-                    }
-                    else if (out.advance(static_cast<const std::ptrdiff_t>(q - b)) == status::excess) [[unlikely]]
-                        return status::expected_end_of_line;
-                    tsp = bits::least_set_bit(out_mask) << simdv<N>::bitpos;
-                    continue;
-                }
-                if (Character::CarriageReturn == c)
-                {
-                    if (q == (end - 1)) [[unlikely]]
-                        return {0, status::expect_line_feed};
-                    if (Character::LineFeed != q[1]) [[unlikely]]
-                        return status::unexpected_char;
-                    out.advance(static_cast<const std::ptrdiff_t>(q - b));
-                    return out.set_version(b);
-                }
-                if constexpr (setup::end_of_line_is_line_feed)
-                {
-                    if (Character::LineFeed == c)
-                    {
-                        out.advance(static_cast<const std::ptrdiff_t>(q - b));
-                        return out.set_version(b);
-                    }
-                }
-                return status::unexpected_char;
-            }
-            tsp = bool(tsp) << (simdv<N>::bitpos - 1);
-        }
-        if (run_size > (N - 1)) [[likely]]
-        {
-            // process trailing bytes by overlapping last read bytes with the remaining bytes
-            const std::size_t r = N - (run_size & (N - 1));
-            const std::size_t s = r * simdv<N>::bitpos;
-            return parse_line<N, true>(b, p - r, out, run_size, constant::cff << s, tsp << s);
-        }
-        // run_size < N
-        if constexpr (N > 8)
-            return parse_line<8, false>(b, p, out, run_size, constant::cff, 0);
-        // run_size < 8
-        return parse_chars(b, out, tsp, run_size, p - b);
+        // c > 0x20 and c < 0x7e
+        return static_cast<i8_t>(c + 0x5f) < -0x22;
     }
 
     // see test/scripts/generate_shuffle_table.py for table generation and comments.
@@ -199,15 +77,16 @@ namespace httpvo::Implementation
 
      inline int is_not_end_of_line_p(const u8_t * const b, auto& e)
     {
-        const int _is_not_end_of_line = (b[0] != Character::CarriageReturn) & (b[1] != Character::LineFeed);
+        const int _is_not_end_of_line = (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
         e = (b[2] == Character::CarriageReturn and b[3] == Character::LineFeed);
         return _is_not_end_of_line;
     }
 
     inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
+        // TODO: special function for mixed crlf and lf as end of line char. Fix return values not matching status code
         if constexpr (setup::end_of_line_is_line_feed)
-            pass(); // TODO
+            pass();
 
         if (rem > 3) [[likely]]
         {
@@ -215,9 +94,9 @@ namespace httpvo::Implementation
                 return is_not_end_of_line_v(b, this->end_of_parse);
             return is_not_end_of_line_p(b, this->end_of_parse);
         }
-        if (rem and b[1] != Character::LineFeed) [[unlikely]]
-            return true;
-        return b[0] != Character::LineFeed;
+        if (not rem) [[unlikely]]
+            return status::expect_bytes | (b[0] != Character::CarriageReturn); 
+         return (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
     }
 
     template<simd::VWidth N, bool ISTRAIL=0>
@@ -272,86 +151,155 @@ namespace httpvo::Implementation
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
-    inline std::size_t is_valid_name_token_(const u8_t * const b)
+    inline std::size_t _offset_of_non_tchar(const u8_t * const b)
     {
         std::size_t i = 0;
         for (; i < 8 and TCHAR_LUT[b[i]] & 1; i++) pass();
         return i;
     }
 
-    inline std::size_t is_valid_name_token_l(const u8_t * const b, const std::size_t i, std::size_t len)
+    inline std::size_t _offset_of_non_tchar_at(const u8_t * const b, const std::size_t i, const std::size_t len)
     {
-        for (std::size_t j = i; j < len and TCHAR_LUT[b[j]] & 1; j++) pass();
+        std::size_t j = i;
+        for (; j < len and TCHAR_LUT[b[j]] & 1; j++) pass();
         return j;
     }
 
-    make_flat inline std::size_t is_valid_name_token(const u8_t * const b)
+    make_flat inline std::size_t offset_of_non_tchar(const u8_t * const b)
     {
         if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
         {
             const simdv<8> v{b};
             if (const mask_t outside = v.ascii_fast_tchar() ^ constant::c80) [[unlikely]] // some other char that is not A-Z0-9 or -, but may be valid
-                return is_valid_name_token_l(b, simdv<8>::countzero_bitmask(outside), 8);
+                return _offset_of_non_tchar_at(b, simdv<8>::countzero_bitmask(outside), 8);
             return 8;
         }
-        return is_valid_name_token_(b);
+        return _offset_of_non_tchar(b);
     }
 
-    make_flat inline std::size_t is_valid_name(const u8_t * const b, const std::size_t len)
+    make_flat inline std::size_t find_non_tchar(const u8_t * const b, const std::size_t len)
     {
-        if (len < 8) return is_valid_token_l(b, 0, len);
+        if (len < 8) return _offset_of_non_tchar_at(b, 0, len);
 
         const u8_t * const end = b + (len - 8);
         for (const u8_t *p = b; p < end; p += 8)
         {
-            if (std::size_t s = is_valid_name_token(p); s < 8)
+            if (std::size_t s = offset_of_non_tchar(p); s < 8)
                 return s + static_cast<std::ptrdiff_t>(p - b);
         }
-        return is_valid_name_token(end) + (len - 8);
+        return offset_of_non_tchar(end) + (len - 8);
     }
 
-    inline std::size_t is_valid_value_token_l(const u8_t *const b, const std::size_t i, const std::size_t len)
+    inline std::size_t _offset_of_bad_char_in_value(const u8_t *const b, const std::size_t i, const std::size_t len)
     {
-        for (std::size_t j = i; j < len and TCHAR_LUT[b[j]]; j++) pass();
+        std::size_t j = i;
+        for (; j < len and TCHAR_LUT[b[j]]; j++) pass();
         return j;
     }
 
-    inline std::size_t is_valid_value_token(const u8_t *const b)
+    inline std::size_t offset_of_bad_char_in_value(const u8_t *const b)
     {
         if constexpr (setup::no_vectorize)
-            return is_valid_value_token_l(b, 0, 8);
+            return _offset_of_bad_char_in_value(b, 0, 8);
         if (const mask_t offset = simdv<8>(b).non_printable_andn_tab())
             return simdv<8>::countzero_bitmask(offset);
         return 8;
     }
 
-    make_flat inline std::size_t is_valid_value(const u8_t * const b, const std::size_t i, const std::size_t len)
+    make_flat inline std::size_t find_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
     {
-        if (len < 8) return is_valid_token_l(b, i, len);
+        if (len < 8) return _offset_of_bad_char_in_value(b, i, len);
 
         const u8_t * const end = b + (len - 8);
-        for (const u8 *p = b + i; p < end; p += 8)
+        for (const u8_t *p = b + i; p < end; p += 8)
         {
-            if (const std::size_t offset = is_valid_value_token(p); offset < 8)
+            if (const std::size_t offset = offset_of_bad_char_in_value(p); offset < 8)
                 return static_cast<std::ptrdiff_t>(p - b) + offset;
         }
-        // this is safe: name tokens are a subset of value tokens
-        return is_valid_value_token(end) + (len - 8);
+        return offset_of_bad_char_in_value(end) + (len - 8);
+    }
+
+    inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t run_size, ReqLine& out)
+    {
+        if (const std::size_t offset = find_non_tchar(b, run_size))
+         {
+            if (not is_whitespace(b[offset])) [[unlikely]]
+                return status::unexpected_char;
+            out.advance(offset);
+            return {0, offset};
+         }
+        return status::expect_bytes;
+    }
+
+     template <simd::VWidth>
+    inline status::statat_t find_request_url_end_(const u8_t *const b, const u8_t *p, mask_t mask)
+    {
+        // TODO
+        const std::size_t offset = simdv<N>::countzero_bitmask(mask);
+        const u8_t *const q = p + offset;
+        const std::size_t position = std::ptrdiff_t > (q - b);
+        if (not is_whitespace(q[0])) [[unlikely]]
+            return status::unexpected_char;
+        out.advance(offset);
+        if (const mask_t i = bits::clear_least_set_bit(out_of_range))
+        {
+            const u8_t *const u = p + simdv<N>::countzero_bitmask(i);
+            if (const status s = is_non_end_of_line(p, offset - i))
+                return s;
+            return out.advance(static_cast<std::ptrdiff_t>(u - b) or out.set_version(b);
+        }
+    }
+
+    template <simd::VWidth>
+    inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size, mask_t& mask)
+    {
+        // TODO
+        if (run_size < (N - 1))
+        {
+            if constexpr (N > 8)
+                return find_request_url_end<8>(b, p, run_size);
+            size_t i = 0;
+            for (; (static_cast<i8_t>(p[i]) + 0x5f) < -0x22; i++)
+                return i;
+        }
+        for (const u8_t *const stop = b + (run_size - N); p < stop; p += N)
+        {
+            if (const mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
+                if (status s = find_request_url_end_(b, p, mask))
+                    return s;
+        }
+        if (mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
+            return find_request_url_end_(b, p, mask);
+        return status::expect_bytes;
+    }
+
+    template<simd::VWidth N=8, bool ISTRAIL=0>
+    [[nodiscard]] inline status parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    {
+        const status::statat_t meth_end = find_request_method_end(b, run_size, out);
+        if (meth_end == 0)
+            return meth_end;
+        return url_end = find_request_url_end(b, p + meth_end.offset, run_size);
+    }
+
+    template<simd::VWidth N=8, bool ISTRAIL=0>
+    [[nodiscard]] inline status parse_response(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    {
+        // TODO
+        return 0;
     }
 
     template<>
     [[nodiscard]] inline status http::parse_header<0>(u8_t * const b, u8_t *b_run [[maybe_unused]], header_view& out, const std::size_t in_size [[maybe_unused]], const std::size_t run_size) noexcept
     {  
-        const u8_t * const end = b + bits::align(run_size, 8);
-        const std::size_t n_offset = is_valid_name(b, end, run_size);
-
+        const std::size_t n_offset = find_non_tchar(b, run_size);
         if (n_offset == run_size) [[unlikely]]
             return status::expect_bytes;
         if (b[n_offset] != Character::Colon) [[unlikely]]
             return status::unexpected_char;
         out.set_name_end(n_offset, nullptr);
         
-        const size_t v_offset = is_valid_value(b, n_offset, run_size);
+        const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
         if (v_offset == run_size)
             return status::expect_bytes;
         if (is_not_end_of_line(b + v_offset, run_size - v_offset))

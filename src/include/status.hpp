@@ -17,15 +17,9 @@ namespace httpvo
 
         struct statat_t {
             int stat;
-            std::size_t at;
-            constexpr statat_t(int s=0, std::size_t a=0) : stat{s}, at{a} {};
-            inline constexpr statat_t(const statat_t &s) : stat{s.stat}, at{s.at} {};
-            
-            inline statat_t& operator+=(const std::size_t _at)
-            {
-                at += _at;
-                return *this;
-            }
+            std::size_t offset;
+            constexpr statat_t(int s=0, std::size_t o=0) : stat{s}, offset{o} {};
+            inline constexpr statat_t(const statat_t &s) : stat{s.stat}, offset{s.offset} {};
             
             inline operator bool(void) const
             {
