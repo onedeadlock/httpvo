@@ -225,52 +225,60 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
 
-    template <simd::VWidth N>
-    inline std::size_t is_in_range_20_7e(const u8_t *p, mask_t &mask)
+    class type
     {
-        if (const mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
+        struct maskoffset
         {
-            mask = out_of_range;
-            return simdv<N>::countzero_bitmask(mask);
-        }
+            std::size_t offset = 0;
+            mask_t mask = 0;
+            constexpr maskoffset(const std::size_t i=0, const mask_t m=0) noexcept : offset{i}, mask{m} {}
+            inline maskoffset& operator+=(const std::size_t i)
+            { offset += i; return *this; }
+        };
+    };
+
+    template <int X, int Y, simd::VWidth N>
+    inline type::maskoffset is_out_of_range(const u8_t *b)
+    {
+        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
+            return {simdv<N>::countzero_bitmask(mask), mask};
         return 8;
     };
 
-    inline bool is_in_range_20_7e_s(int c)
+    inline bool is_out_of_range_c(int c)
     {
         // c > 0x20 and c < 0x7e
-        return static_cast<i8_t>(c + 0x5f) < -0x22;
+        return static_cast<i8_t>(c + 0x5f) > -0x21;
     }
     
     template <simd::VWidth N>
-    inline std::size_t find_request_url_end_(const u8_t *const b, const u8_t *p)
+    inline type::maskoffset find_request_url_end_(const u8_t *const b, const u8_t *p, const std::size_t run_size)
     {
         for (const u8_t *const stop = b + (run_size - N); p < stop; p += N)
         {
-            if (const std::size_t offset = is_in_range_20_7e<N>(p); offset < 8)
-                return static_cast<std::ptrdiff_t>(p - b) + offset;
+            if (const type::maskoffset offset = is_out_of_range<0x21, 0x7e, N>(p); offset < 8)
+                return offset + static_cast<std::ptrdiff_t>(p - b);
         }
-        return is_in_range_20_7e<N>(stop) + (run_size - N);
+        return is_out_of_range<0x21, 0x7e, N>(stop) + (run_size - N);
     }
 
     template <simd::VWidth>
-    inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size, mask_t& mask)
+    inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size)
     {
         if (run_size < (N - 1)) [[unlikely]]
         {
             if constexpr (N > 8)
                 return find_request_url_end<8>(b, p, run_size);
             size_t i = 0;
-            for (; is_in_range_20_7e_s(static_cast<i8_t>(p[i])); i++)
+            for (; is_out_of_range_c(static_cast<i8_t>(p[i])); i++)
                 return i;
         }
         for (;;)
         {
-            std::mask_size_t mask = 0; // set in @find_request_url_end_
-            const std::size_t offset = find_request_url_end_(b, p, mask);
+            const type::maskoffset offset = find_request_url_end_(b, p);
             if (offset == run_size) [[unlikely]]
                 return status::expect_bytes;
-            while (mask)
+            for (mask_t mask = offset.mask; mask; /*TODO*/)
             {
                 const std::size_t i = simdv<N>::countzero_bitmask(mask);
                 if (is_whitespace(p[0]))
@@ -281,16 +289,6 @@ namespace httpvo::Implementation
                 return status::unexpected_char;
             }
         }
-
-        for (const u8_t *const stop = b + (run_size - N); p < stop; p += N)
-        {
-            if (const mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
-                if (status s = find_request_url_end_(b, p, mask))
-                    return s;
-        }
-        if (mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
-            return find_request_url_end_(b, p, mask);
-        return status::expect_bytes;
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>
@@ -320,9 +318,9 @@ namespace httpvo::Implementation
         out.set_name_end(n_offset, nullptr);
         
         const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
-        if (v_offset == run_size)
+        if (v_offset == run_size) [[unlikely]]
             return status::expect_bytes;
-        if (is_not_end_of_line(b + v_offset, run_size - v_offset))
+        if (is_not_end_of_line(b + v_offset, run_size - v_offset)) [[unlikely]]
             return status::unexpected_char;
         return out.set_value_end(v_offset, reinterpret_cast<const u8_t *>(b));
     }
