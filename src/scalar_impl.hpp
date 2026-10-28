@@ -299,7 +299,7 @@ namespace httpvo::Implementation
         const status::statat_t meth_end = find_request_method_end(b, run_size, out);
         if (meth_end == 0)
             return meth_end;
-        return url_end = find_request_url_end(b, p + meth_end.offset, run_size);
+        return find_request_url_end(b, p + meth_end.offset, run_size);
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>
