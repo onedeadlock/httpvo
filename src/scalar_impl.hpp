@@ -21,12 +21,6 @@ namespace httpvo::Implementation
         return c == Character::Space or c == Character::HorizontalTab;
     }
 
-    inline bool is_in_range(int c)
-    {
-        // c > 0x20 and c < 0x7e
-        return static_cast<i8_t>(c + 0x5f) < -0x22;
-    }
-
     // see test/scripts/generate_shuffle_table.py for table generation and comments.
     alignas(16) static constexpr u8_t TCHAR_CLASS_LUT[32]{
         58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28,
@@ -42,14 +36,14 @@ namespace httpvo::Implementation
     template<simd::VWidth N>
     inline mask_t is_control_char(const simdv<N>& v)
     {
-        // since the control bytes overlap, we can reduce to a simple nibble comparison. see /test/scripts/generate_shuffle_table2.py for table generation and comments
         const simdv<N> CTRL_LO = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
         const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
-
         if constexpr (setup::neon)
         {
+            // no single 16B lookup (vqtbl1q). shuffle is not worth it since we have to do two shuffles for each lane halves.
             if constexpr (not setup::arm64)
-                return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); // no single 16B lookup (vqtbl1q). shuffle is not worth it since we have to do two shuffles for each lane halves.
+                return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); 
+            // we have vqtbl1q
             return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
         }    
         return v.shuf_table(CTRL_LO) > ((v >> 4) & 0xf).shuf_table(CTRL_HI);
@@ -231,37 +225,63 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
 
-     template <simd::VWidth>
-    inline status::statat_t find_request_url_end_(const u8_t *const b, const u8_t *p, mask_t mask)
+    template <simd::VWidth N>
+    inline std::size_t is_in_range_20_7e(const u8_t *p, mask_t &mask)
     {
-        // TODO
-        const std::size_t offset = simdv<N>::countzero_bitmask(mask);
-        const u8_t *const q = p + offset;
-        const std::size_t position = std::ptrdiff_t > (q - b);
-        if (not is_whitespace(q[0])) [[unlikely]]
-            return status::unexpected_char;
-        out.advance(offset);
-        if (const mask_t i = bits::clear_least_set_bit(out_of_range))
+        if (const mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
         {
-            const u8_t *const u = p + simdv<N>::countzero_bitmask(i);
-            if (const status s = is_non_end_of_line(p, offset - i))
-                return s;
-            return out.advance(static_cast<std::ptrdiff_t>(u - b) or out.set_version(b);
+            mask = out_of_range;
+            return simdv<N>::countzero_bitmask(mask);
         }
+        return 8;
+    };
+
+    inline bool is_in_range_20_7e_s(int c)
+    {
+        // c > 0x20 and c < 0x7e
+        return static_cast<i8_t>(c + 0x5f) < -0x22;
+    }
+    
+    template <simd::VWidth N>
+    inline std::size_t find_request_url_end_(const u8_t *const b, const u8_t *p)
+    {
+        for (const u8_t *const stop = b + (run_size - N); p < stop; p += N)
+        {
+            if (const std::size_t offset = is_in_range_20_7e<N>(p); offset < 8)
+                return static_cast<std::ptrdiff_t>(p - b) + offset;
+        }
+        return is_in_range_20_7e<N>(stop) + (run_size - N);
     }
 
     template <simd::VWidth>
     inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size, mask_t& mask)
     {
-        // TODO
-        if (run_size < (N - 1))
+        if (run_size < (N - 1)) [[unlikely]]
         {
             if constexpr (N > 8)
                 return find_request_url_end<8>(b, p, run_size);
             size_t i = 0;
-            for (; (static_cast<i8_t>(p[i]) + 0x5f) < -0x22; i++)
+            for (; is_in_range_20_7e_s(static_cast<i8_t>(p[i])); i++)
                 return i;
         }
+        for (;;)
+        {
+            std::mask_size_t mask = 0; // set in @find_request_url_end_
+            const std::size_t offset = find_request_url_end_(b, p, mask);
+            if (offset == run_size) [[unlikely]]
+                return status::expect_bytes;
+            while (mask)
+            {
+                const std::size_t i = simdv<N>::countzero_bitmask(mask);
+                if (is_whitespace(p[0]))
+                {
+                    if (0) [[unlikely]]
+                        continue;
+                }
+                return status::unexpected_char;
+            }
+        }
+
         for (const u8_t *const stop = b + (run_size - N); p < stop; p += N)
         {
             if (const mask_t out_of_range = simdv<N>(p).template cmpngt_lt<0x21, 0x7e>().to_bitmask()) [[unlikely]]
