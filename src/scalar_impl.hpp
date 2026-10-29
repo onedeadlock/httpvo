@@ -281,18 +281,17 @@ namespace httpvo::Implementation
             return p;
         if constexpr (not setup::no_multispace)
         {
+            constexpr mask_t all_whitespace = bit::mask_fill<mask_t>(N, simdv<N>::bitpos);
             const u8_t *stop = end - N;
             for (; p < stop; p += N)
             {
-                constexpr mask_t fill = bit::mask_fill<mask_t>(N);
-                const     mask_t mask = is_whitespace(simdv<N>{p});
-                if (mask ^ fill) [[likely]] // has a non-whitespace char
+                const mask_t mask = is_whitespace(simdv<N>{p});
+                if (mask != all_whitespace) [[likely]] // has a non-whitespace char
                     return p + simdv<N>::countzero_bitmask(mask);
             }
             const mask_t mask = is_whitespace(simdv<N>{stop});
-            if (mask) [[likely]]
-                return end;
-            return stop + simdv<N>::countzero_bitmask(mask);
+            if (mask != all_whitespace) [[likely]]
+                return stop + simdv<N>::countzero_bitmask(mask);
         }
         return end;
     }
