@@ -281,13 +281,13 @@ namespace httpvo::Implementation
             return p;
         if constexpr (not setup::no_multispace)
         {
-            const u8_t *stop = end - (N - 1);
-            for (; p < end; p += N)
+            const u8_t *stop = end - N;
+            for (; p < stop; p += N)
             {
-                const mask_t mask = is_whitespace(simdv<N>{p});
-                if (mask ^ ~(mask_t)0) [[unlikely]]
-                    continue;
-                return p + simdv<N>::countzero_bitmask(mask);
+                constexpr mask_t fill = bit::mask_fill<mask_t>(N);
+                const     mask_t mask = is_whitespace(simdv<N>{p});
+                if (mask ^ fill) [[likely]] // has a non-whitespace char
+                    return p + simdv<N>::countzero_bitmask(mask);
             }
             const mask_t mask = is_whitespace(simdv<N>{stop});
             if (mask) [[likely]]
@@ -307,7 +307,7 @@ namespace httpvo::Implementation
             else
                 while (++p < end and is_whitespace(p[0])) pass();
         }
-        return p < end ? p : end;
+        return p;
     }
 
     template <bool GTE_8>
@@ -342,7 +342,7 @@ namespace httpvo::Implementation
     {
         if (run_size < (N - 1)) [[unlikely]]
             return find_request_url_end_in_small_set<( N > 7 )>(b, p, run_size);
-        // TODO: trim trailing space
+        // TODO: trim leading space
         for (;;)
         {
             const type::maskoffset offset = find_request_url_end_<N>(b, p);
@@ -353,7 +353,7 @@ namespace httpvo::Implementation
                 const std::size_t i = simdv<N>::countzero_bitmask(mask);
                 if (is_whitespace(p[0]))
                 {
-                    if (0) [[unlikely]] // TODO: trim leading space
+                    if (0) [[unlikely]] // TODO: trim trailing apace
                         continue;
                 }
                 return status::unexpected_char;
