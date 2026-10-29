@@ -16,9 +16,28 @@ namespace httpvo::Implementation
         Delete         = '\x7f',
     };
 
-    inline bool is_whitespace(const int c)
+    struct type
     {
-        return c == Character::Space or c == Character::HorizontalTab;
+        struct maskoffset
+        {
+            std::size_t offset;
+            mask_t mask;
+            constexpr maskoffset(const std::size_t i=0, const mask_t m=0) noexcept : offset{i}, mask{m} {}
+        };
+
+        friend constexpr maskoffset operator+(const maskoffset m, const std::size_t i)
+        { return {m.offset + i, m.mask}; }
+        friend constexpr bool operator<(const maskoffset m, const std::size_t i)
+        { return m.offset < i; }
+        friend constexpr bool operator==(const maskoffset m, const std::size_t i)
+        { return m.offset == i; }
+    };
+
+    template<typename T>
+    inline T is_whitespace(const T c)
+    {
+        static_assert(std::is_integral<T>() or simd::is_simd_v<T>());
+        return (c == Character::Space) | (c == Character::HorizontalTab);
     }
 
     // see test/scripts/generate_shuffle_table.py for table generation and comments.
@@ -40,11 +59,10 @@ namespace httpvo::Implementation
         const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
         if constexpr (setup::neon)
         {
-            // no single 16B lookup (vqtbl1q). shuffle is not worth it since we have to do two shuffles for each lane halves.
             if constexpr (not setup::arm64)
-                return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); 
-            // we have vqtbl1q
-            return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
+                return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); // no vqtbl1q
+            else 
+                return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
         }    
         return v.shuf_table(CTRL_LO) > ((v >> 4) & 0xf).shuf_table(CTRL_HI);
     }
@@ -111,13 +129,13 @@ namespace httpvo::Implementation
                 const u8_t * const q = p + simdv<N>::countzero_bitmask(non_tchar);
                 if (q[0] != Character::Colon) [[unlikely]]
                     return status::unexpected_char;
-                out.set_name_end(static_cast<std::ptrdiff_t>(q - b), nullptr);
+                out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
                 parsing_value = true;
             }
             if (mask_t control_char = is_control_char(v))
             {
                 const u8_t * const q = p + simdv<N>::countzero_bitmask(control_char);
-                const std::size_t q_offset = static_cast<std::ptrdiff_t>(q - b);
+                const std::size_t q_offset = static_cast<std::size_t>(q - b);
                 if (is_not_end_of_line(q, run_size - q_offset)) [[unlikely]]
                     return status::unexpected_char;
                 return out.set_value_end(q_offset, b);
@@ -179,7 +197,7 @@ namespace httpvo::Implementation
         for (const u8_t *p = b; p < end; p += 8)
         {
             if (std::size_t s = offset_of_non_tchar(p); s < 8)
-                return s + static_cast<std::ptrdiff_t>(p - b);
+                return s + static_cast<std::size_t>(p - b);
         }
         return offset_of_non_tchar(end) + (len - 8);
     }
@@ -208,7 +226,7 @@ namespace httpvo::Implementation
         for (const u8_t *p = b + i; p < end; p += 8)
         {
             if (const std::size_t offset = offset_of_bad_char_in_value(p); offset < 8)
-                return static_cast<std::ptrdiff_t>(p - b) + offset;
+                return static_cast<std::size_t>(p - b) + offset;
         }
         return offset_of_bad_char_in_value(end) + (len - 8);
     }
@@ -225,79 +243,131 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
 
-    class type
-    {
-        struct maskoffset
-        {
-            std::size_t offset = 0;
-            mask_t mask = 0;
-            constexpr maskoffset(const std::size_t i=0, const mask_t m=0) noexcept : offset{i}, mask{m} {}
-            inline maskoffset& operator+=(const std::size_t i)
-            { offset += i; return *this; }
-        };
-    };
-
     template <int X, int Y, simd::VWidth N>
     inline type::maskoffset is_out_of_range(const u8_t *b)
     {
+        static_assert(X == 0x21 and Y == 0x7e);
         if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
             return {simdv<N>::countzero_bitmask(mask), mask};
-        return 8;
+        return N;
     };
 
-    inline bool is_out_of_range_c(int c)
+    inline bool is_in_range_c(const int c)
     {
-        // c > 0x20 and c < 0x7e
-        return static_cast<i8_t>(c + 0x5f) > -0x21;
+        // c > 0x20 or c < 0x7f
+        static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
+        return static_cast<const i8_t>(c + 0x5f) < -0x22;
     }
     
     template <simd::VWidth N>
-    inline type::maskoffset find_request_url_end_(const u8_t *const b, const u8_t *p, const std::size_t run_size)
+    inline type::maskoffset find_request_url_end_(const u8_t *const b, const u8_t *p, const std::size_t len)
     {
-        for (const u8_t *const stop = b + (run_size - N); p < stop; p += N)
+        const u8_t *const stop = b + (len - N);
+        for (; p < stop; p += N)
         {
-            if (const type::maskoffset offset = is_out_of_range<0x21, 0x7e, N>(p); offset < 8)
-                return offset + static_cast<std::ptrdiff_t>(p - b);
+            if (const type::maskoffset offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
+                return offset + static_cast<std::size_t>(p - b);
         }
-        return is_out_of_range<0x21, 0x7e, N>(stop) + (run_size - N);
+        return is_out_of_range<0x21, 0x7e, N>(stop) + (len - N);
     }
 
-    template <simd::VWidth>
+    template <simd::VWidth N>
+    status::statat_t find_request_url_end(const u8_t *, const u8_t *, const std::size_t);
+
+    template<simd::VWidth N>
+    inline const u8_t * trim_whitespace_till_end(const u8_t *p, const u8_t *const end)
+    {
+        if (not is_whitespace(p[0]))
+            return p;
+        if constexpr (not setup::no_multispace)
+        {
+            const u8_t *stop = end - (N - 1);
+            for (; p < end; p += N)
+            {
+                const mask_t mask = is_whitespace(simdv<N>{p});
+                if (mask ^ ~(mask_t)0) [[unlikely]]
+                    continue;
+                return p + simdv<N>::countzero_bitmask(mask);
+            }
+            const mask_t mask = is_whitespace(simdv<N>{stop});
+            if (mask) [[likely]]
+                return end;
+            return stop + simdv<N>::countzero_bitmask(mask);
+        }
+        return end;
+    }
+
+    template<>
+    inline const u8_t * trim_whitespace_till_end<0>(const u8_t *p, const u8_t *const end)
+    {
+        if (is_whitespace(p[0]))
+        {
+            if constexpr (setup::no_multispace)
+                return end;
+            else
+                while (++p < end and is_whitespace(p[0])) pass();
+        }
+        return p < end ? p : end;
+    }
+
+    template <bool GTE_8>
+    inline status::statat_t find_request_url_end_in_small_set(const u8_t *const b, const u8_t *p, const std::size_t run_size)
+    {
+        if constexpr (GTE_8 and not setup::no_vectorize) // greater or equal to eight
+            return find_request_url_end<8>(b, p, run_size);
+        else
+        {
+            const u8_t *const end = b + run_size;
+            if (p = trim_whitespace_till_end<0>(p, end); p == end) [[unlikely]]
+                return status::bad_whitespace;
+            do
+            {
+                const u8_t c = p[0];
+                if (is_in_range_c(c)) [[likely]]
+                    continue;
+                if (is_whitespace(c))
+                {
+                    if (p = trim_whitespace_till_end<0>(p, end); p == end) [[unlikely]]
+                        return status::bad_whitespace;
+                    return {0, static_cast<std::size_t>(p - b)};
+                }
+                return status::unexpected_char;
+            } while (p < end);
+        }
+        return status::expect_bytes;
+    }
+
+    template <simd::VWidth N>
     inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size)
     {
         if (run_size < (N - 1)) [[unlikely]]
-        {
-            if constexpr (N > 8)
-                return find_request_url_end<8>(b, p, run_size);
-            size_t i = 0;
-            for (; is_out_of_range_c(static_cast<i8_t>(p[i])); i++)
-                return i;
-        }
+            return find_request_url_end_in_small_set<( N > 7 )>(b, p, run_size);
+        // TODO: trim trailing space
         for (;;)
         {
-            const type::maskoffset offset = find_request_url_end_(b, p);
+            const type::maskoffset offset = find_request_url_end_<N>(b, p);
             if (offset == run_size) [[unlikely]]
                 return status::expect_bytes;
-            for (mask_t mask = offset.mask; mask; /*TODO*/)
-            {
+            mask_t mask = offset.mask;
+            do {
                 const std::size_t i = simdv<N>::countzero_bitmask(mask);
                 if (is_whitespace(p[0]))
                 {
-                    if (0) [[unlikely]]
+                    if (0) [[unlikely]] // TODO: trim leading space
                         continue;
                 }
                 return status::unexpected_char;
-            }
+            } while (mask);
         }
     }
 
-    template<simd::VWidth N=8, bool ISTRAIL=0>
-    [[nodiscard]] inline status parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    template<simd::VWidth N=8>
+    [[nodiscard]] inline status::statat_t parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
     {
         const status::statat_t meth_end = find_request_method_end(b, run_size, out);
-        if (meth_end == 0)
+        if (meth_end < 0)
             return meth_end;
-        return find_request_url_end(b, p + meth_end.offset, run_size);
+        return find_request_url_end<N>(b, p + meth_end.offset, run_size);
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>

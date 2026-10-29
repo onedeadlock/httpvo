@@ -8,9 +8,6 @@ namespace httpvo::simd
      using VWidth = u64_t;
      using mask_t = u64_t;
 
-     template <VWidth N>
-     struct simdv;
-
      static constexpr VWidth TRAIL = 0;
 #    ifndef HTTPVO_NO_64B
          static constexpr VWidth max = 64;
@@ -18,6 +15,26 @@ namespace httpvo::simd
          static constexpr VWidth max = 32;
 #    endif
      static constexpr     VWidth min = 8;
+
+     template <VWidth N>
+     struct simdv;
+
+     template <class... Ts>
+     struct SIMD_IMPL_SET{};
+
+     using SIMD_SET = SIMD_IMPL_SET<simdv<8>, simdv<16>, simdv<32>>;
+
+     template <class T>
+     using REMOVE_CVREF = std::remove_cv_t<std::remove_reference_t<T>>;
+
+     template <class T, class Ts>
+     struct IS_SIMD_IMPL_SET;
+
+     template <class T, class... Ts>
+     struct IS_SIMD_IMPL_SET<T, SIMD_IMPL_SET<Ts...>> : std::integral_constant<bool, (std::is_same_v<REMOVE_CVREF<T>, Ts> || ...)>{};
+
+     template <class T>
+     using is_simd_v = IS_SIMD_IMPL_SET<T, SIMD_SET>;
 
      template<>
      struct simdv<8>
