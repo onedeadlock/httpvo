@@ -202,7 +202,7 @@ namespace httpvo::Implementation
         return offset_of_non_tchar(end) + (len - 8);
     }
 
-    inline std::size_t _offset_of_bad_char_in_value(const u8_t *const b, const std::size_t i, const std::size_t len)
+    inline std::size_t _offset_of_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
     {
         std::size_t j = i;
         for (; j < len and TCHAR_LUT[b[j]]; j++) pass();
@@ -258,61 +258,47 @@ namespace httpvo::Implementation
         static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
         return static_cast<const i8_t>(c + 0x5f) < -0x22;
     }
-    
-    template <simd::VWidth N>
-    inline type::maskoffset find_request_url_end_(const u8_t *const b, const u8_t *p, const std::size_t len)
-    {
-        const u8_t *const stop = b + (len - N);
-        for (; p < stop; p += N)
-        {
-            if (const type::maskoffset offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
-                return offset + static_cast<std::size_t>(p - b);
-        }
-        return is_out_of_range<0x21, 0x7e, N>(stop) + (len - N);
-    }
-
-    template <simd::VWidth N>
-    status::statat_t find_request_url_end(const u8_t *, const u8_t *, const std::size_t);
 
     template<simd::VWidth N>
-    inline const u8_t * trim_whitespace_till_end(const u8_t *p, const u8_t *const end)
+    inline const u8_t * trim_whitespace_till_end(const u8_t *p, const u8_t * const end)
     {
         if (not is_whitespace(p[0]))
             return p;
         if constexpr (not setup::no_multispace)
         {
-            constexpr mask_t all_whitespace = bit::mask_fill<mask_t>(N, simdv<N>::bitpos);
-            const u8_t *stop = end - N;
-            for (; p < stop; p += N)
+            constexpr mask_t all_whitespace = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
+            for (const u8_t * const stop = end - N; p < stop; p += N)
             {
                 const mask_t mask = is_whitespace(simdv<N>{p});
-                if (mask != all_whitespace) [[likely]] // has a non-whitespace char
+                if (mask != all_whitespace) [[likely]]
                     return p + simdv<N>::countzero_bitmask(mask);
             }
             const mask_t mask = is_whitespace(simdv<N>{stop});
             if (mask != all_whitespace) [[likely]]
-                return stop + simdv<N>::countzero_bitmask(mask);
+                return (end - N) + simdv<N>::countzero_bitmask(mask);
         }
         return end;
     }
 
     template<>
-    inline const u8_t * trim_whitespace_till_end<0>(const u8_t *p, const u8_t *const end)
+    inline const u8_t * trim_whitespace_till_end<0>(const u8_t *p, const u8_t * const end)
     {
         if (is_whitespace(p[0]))
         {
-            if constexpr (setup::no_multispace)
-                return end;
-            else
-                while (++p < end and is_whitespace(p[0])) pass();
+            if constexpr (setup::no_multispace) return end;
+            else while (++p < end and is_whitespace(p[0])) pass();
         }
         return p;
     }
 
-    template <bool GTE_8>
-    inline status::statat_t find_request_url_end_in_small_set(const u8_t *const b, const u8_t *p, const std::size_t run_size)
+    template <simd::VWidth N>
+    status::statat_t find_request_url_end(const u8_t *, const u8_t *, const std::size_t);
+
+ 
+    template <simd::VWidth CAN_VECTORIZE>
+    inline status::statat_t find_request_url_end_in_small_set(const u8_t *const b, const u8_t *p, header_view& out, const std::size_t run_size)
     {
-        if constexpr (GTE_8 and not setup::no_vectorize) // greater or equal to eight
+        if constexpr (CAN_VECTORIZE and not setup::no_vectorize) // greater or equal to eight
             return find_request_url_end<8>(b, p, run_size);
         else
         {
@@ -326,9 +312,11 @@ namespace httpvo::Implementation
                     continue;
                 if (is_whitespace(c))
                 {
-                    if (p = trim_whitespace_till_end<0>(p, end); p == end) [[unlikely]]
-                        return status::bad_whitespace;
-                    return {0, static_cast<std::size_t>(p - b)};
+                    p = trim_whitespace_till_end<0>(p, end);
+                    const std::size_t offset = static_cast<std::size_t>(p - b);
+                    if  (offset == run_size | out.advance(offset) == status::excess) [[unlikely]]
+                        return status::error;
+                    return {0, offset};
                 }
                 return status::unexpected_char;
             } while (p < end);
@@ -337,26 +325,34 @@ namespace httpvo::Implementation
     }
 
     template <simd::VWidth N>
+    inline type::maskoffset find_request_url_end_(const u8_t * const b, const u8_t *p, const std::size_t len)
+    {
+        const u8_t * const stop = b + (len - N);
+        for (; p < stop; p += N)
+        {
+            if (const type::maskoffset offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
+                return offset + static_cast<std::size_t>(p - b);
+        }
+        return is_out_of_range<0x21, 0x7e, N>(stop) + (len - N);
+    }
+
+    template <simd::VWidth N>
     inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size)
     {
         if (run_size < (N - 1)) [[unlikely]]
             return find_request_url_end_in_small_set<( N > 7 )>(b, p, run_size);
         // TODO: trim leading space
+        const u8_t * const end = b + run_size;
         for (;;)
         {
             const type::maskoffset offset = find_request_url_end_<N>(b, p);
             if (offset == run_size) [[unlikely]]
                 return status::expect_bytes;
-            mask_t mask = offset.mask;
-            do {
-                const std::size_t i = simdv<N>::countzero_bitmask(mask);
-                if (is_whitespace(p[0]))
-                {
-                    if (0) [[unlikely]] // TODO: trim trailing apace
-                        continue;
-                }
-                return status::unexpected_char;
-            } while (mask);
+            if (is_whitespace(p[offset]))
+            {
+                if (trim_whitespace_till_end<N>(p, b + run_size))
+                    return 0;
+            }
         }
     }
 
@@ -364,9 +360,12 @@ namespace httpvo::Implementation
     [[nodiscard]] inline status::statat_t parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
     {
         const status::statat_t meth_end = find_request_method_end(b, run_size, out);
-        if (meth_end < 0)
+        if (meth_end != 0)
             return meth_end;
-        return find_request_url_end<N>(b, p + meth_end.offset, run_size);
+        const statat_t val_end = find_request_url_end<N>(b, p + meth_end.offset, out, run_size);
+        if (val_end !+ 0)
+            return val_end;
+        // TODO: end of line
     }
 
     template<simd::VWidth N=8, bool ISTRAIL=0>

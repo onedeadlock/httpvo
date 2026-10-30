@@ -38,6 +38,17 @@ namespace httpvo::bits
         return x & ~(n - 1);
     }
 
+    template <typename T>
+    constexpr T mask_fill(T width, T splat)
+    {
+        if (setup::debug)
+            assert(is_power_of_two(width) and (splat > 0 and splat < 9) and is_power_of_two(splat));
+        constexpr u8_t bit_tab[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
+        const T mask =  static_cast<T>((bit_tab[splat - 1] * constant::c01));
+        const T fill = (static_cast<T>(1U) << width) - 1;
+        return fill & mask;
+    }
+
     inline u64_t ltrim(u64_t x)
     {
         return andnot(x, x << 1);

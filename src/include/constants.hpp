@@ -20,11 +20,6 @@ namespace httpvo::constant
     static constexpr u64_t cdf = 0xdfdfdfdfdfdfdfdfULL;
 
     static constexpr u64_t compress = 0x0002040810204081ULL;
-    static constexpr u64_t msb_64   = 0x8000000000000000ULL;
-    static constexpr u64_t msb_32   = 0x0000000080000000ULL;
-    static constexpr u64_t msb3_64  = 0xe000000000000000ULL;
-    static constexpr u64_t msb3_32  = 0x00000000e0000000ULL;
-    
 
     static constexpr u64_t  hyphen = U64('\x2d') * c01;
     
