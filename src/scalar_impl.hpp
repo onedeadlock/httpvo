@@ -196,8 +196,8 @@ namespace httpvo::Implementation
         const u8_t * const end = b + (len - 8);
         for (const u8_t *p = b; p < end; p += 8)
         {
-            if (std::size_t s = offset_of_non_tchar(p); s < 8)
-                return s + static_cast<std::size_t>(p - b);
+            if (const std::size_t offset = offset_of_non_tchar(p); offset < 8)
+                return offset + static_cast<std::size_t>(p - b);
         }
         return offset_of_non_tchar(end) + (len - 8);
     }
