@@ -4,9 +4,6 @@
 
 namespace httpvo::constant
 {
-    static constexpr std::size_t int_size   = sizeof (u64_t);
-    static constexpr std::size_t int_size_p = (int_size / 2) - 1;
-
     static constexpr u64_t c7f = 0x7f7f7f7f7f7f7f7fULL;
     static constexpr u64_t cff = 0xffffffffffffffffULL;
     static constexpr u64_t c80 = 0x8080808080808080ULL;
@@ -26,8 +23,6 @@ namespace httpvo::constant
     static constexpr u64_t AZ_const = c7f & cdf;
     static constexpr u64_t A = U64('\x7f' - '\x40') * c01;
     static constexpr u64_t Z = U64('\x7f' + '\x5b') * c01;
-
-    static constexpr u64_t mask_http_1 = 13843054604866632ULL; // H  T  T  P  /  1  .
 
     static constexpr u64_t DeBruijn64_const = 0x03f79d71b4cb0a89ULL;
 
