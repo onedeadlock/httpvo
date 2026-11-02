@@ -244,23 +244,23 @@ namespace httpvo::Implementation
     }
 
     template <int X, int Y, simd::VWidth N>
-    inline type::maskoffset is_out_of_range(const u8_t *b)
+    inline std::size_t is_out_of_range(const u8_t *b)
     {
         static_assert(X == 0x21 and Y == 0x7e);
         if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
-            return {simdv<N>::countzero_bitmask(mask), mask};
+            return simdv<N>::countzero_bitmask(mask);
         return N;
     };
 
-    inline bool is_in_range_c(const int c)
+    template<>
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
     {
-        // c > 0x20 or c < 0x7f
         static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
-        return static_cast<const i8_t>(c + 0x5f) < -0x22;
+        return static_cast<const i8_t>(*b + 0x5f) < -0x22;
     }
 
     template<simd::VWidth N>
-    inline const u8_t * trim_whitespace_till_end(const u8_t *p, const u8_t * const end)
+    inline const u8_t * trim_whitespace(const u8_t *p, const u8_t * const end)
     {
         if (not is_whitespace(p[0]))
             return p;
@@ -281,7 +281,7 @@ namespace httpvo::Implementation
     }
 
     template<>
-    inline const u8_t * trim_whitespace_till_end<0>(const u8_t *p, const u8_t * const end)
+    inline const u8_t * trim_whitespace<0>(const u8_t *p, const u8_t * const end)
     {
         if (is_whitespace(p[0]))
         {
@@ -292,78 +292,62 @@ namespace httpvo::Implementation
     }
 
     template <simd::VWidth N>
-    status::statat_t find_request_url_end(const u8_t *, const u8_t *, const std::size_t);
-
- 
-    template <simd::VWidth CAN_VECTORIZE>
-    inline status::statat_t find_request_url_end_in_small_set(const u8_t *const b, const u8_t *p, header_view& out, const std::size_t run_size)
-    {
-        if constexpr (CAN_VECTORIZE and not setup::no_vectorize) // greater or equal to eight
-            return find_request_url_end<8>(b, p, run_size);
-        else
-        {
-            const u8_t *const end = b + run_size;
-            if (p = trim_whitespace_till_end<0>(p, end); p == end) [[unlikely]]
-                return status::bad_whitespace;
-            do
-            {
-                const u8_t c = p[0];
-                if (is_in_range_c(c)) [[likely]]
-                    continue;
-                if (is_whitespace(c))
-                {
-                    p = trim_whitespace_till_end<0>(p, end);
-                    const std::size_t offset = static_cast<std::size_t>(p - b);
-                    if  (offset == run_size | out.advance(offset) == status::excess) [[unlikely]]
-                        return status::error;
-                    return {0, offset};
-                }
-                return status::unexpected_char;
-            } while (p < end);
-        }
-        return status::expect_bytes;
-    }
-
-    template <simd::VWidth N>
-    inline type::maskoffset find_request_url_end_(const u8_t * const b, const u8_t *p, const std::size_t len)
+    inline const u8_t * find_request_url_end_(const u8_t * const b, const u8_t *p, const std::size_t len)
     {
         const u8_t * const stop = b + (len - N);
         for (; p < stop; p += N)
         {
-            if (const type::maskoffset offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
-                return offset + static_cast<std::size_t>(p - b);
+            if (const std::size_t offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
+                return p + offset;
         }
-        return is_out_of_range<0x21, 0x7e, N>(stop) + (len - N);
+        return stop + is_out_of_range<0x21, 0x7e, N>(stop);
+    }
+
+    template <>
+    inline const u8_t * find_request_url_end_<1>(const u8_t * const b, const u8_t *p, const std::size_t len)
+    {
+       
+        for ( const u8_t *const stop = b + len; p < stop and not is_out_of_range<0x21, 0x7e, 1>(p); p += 1)
+            pass();
+        return p;
     }
 
     template <simd::VWidth N>
-    inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size)
+    inline status::statat_t find_request_url_end(const u8_t *const b, const u8_t *p, const std::size_t run_size, header_view& out)
     {
-        if (run_size < (N - 1)) [[unlikely]]
-            return find_request_url_end_in_small_set<( N > 7 )>(b, p, run_size);
-        // TODO: trim leading space
-        const u8_t * const end = b + run_size;
-        for (;;)
+        /* TODO: check run_size logic. run_size here is not actual buffer size but the buffer_size - method end offset */
+        if constexpr (setup::no_vectorize)
+            return find_request_url_end<0>(b, p, run_size);
+        if (run_size < (N - 1))
+            return find_request_url_end<8>(b, p, run_size);
+        const u8_t *const end = b + run_size;
+        if (p = trim_whitespace<N>(p, end); p == end) [[unlikely]]
+            return status::bad_whitespace;
+
+        p = find_request_url_end_<N>(b, p, run_size);
+        if  (p == end) [[unlikely]]
+            return status::expect_bytes;
+        if (is_whitespace(p[0]))
         {
-            const type::maskoffset offset = find_request_url_end_<N>(b, p);
-            if (offset == run_size) [[unlikely]]
-                return status::expect_bytes;
-            if (is_whitespace(p[offset]))
-            {
-                if (trim_whitespace_till_end<N>(p, b + run_size))
-                    return 0;
-            }
+            p = trim_whitespace<N>(p, end);
+            const std::size_t len = static_cast<std::size_t>(p - b);
+            if ((len == run_size) | (out.advance(len) == status::excess)) [[unlikely]]
+                return status::error;
+            return {0, len};
         }
+        return status::unexpected_char;
     }
 
     template<simd::VWidth N=8>
     [[nodiscard]] inline status::statat_t parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
     {
+        if (run_size < 8)
+            return status::expect_bytes;
         const status::statat_t meth_end = find_request_method_end(b, run_size, out);
         if (meth_end != 0)
             return meth_end;
-        const statat_t val_end = find_request_url_end<N>(b, p + meth_end.offset, out, run_size);
-        if (val_end !+ 0)
+        const statat_t val_end = find_request_url_end<N>(b, p + meth_end.offset, run_size, out);
+        if (val_end != 0)
             return val_end;
         // TODO: end of line
     }
