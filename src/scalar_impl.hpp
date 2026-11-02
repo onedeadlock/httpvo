@@ -317,23 +317,25 @@ namespace httpvo::Implementation
     {
         /* TODO: check run_size logic. run_size here is not actual buffer size but the buffer_size - method end offset */
         if constexpr (setup::no_vectorize)
-            return find_request_url_end<0>(b, p, run_size);
-        if (run_size < (N - 1))
-            return find_request_url_end<8>(b, p, run_size);
+            return find_request_url_end<1>(b, p, run_size);
+        if (run_size < N)
+        {
+            if constexpr (N > 8) return find_request_url_end<8>(b, p, run_size, out);
+            else return find_request_url_end<1>(b, p, run_size, out);
+        }
         const u8_t *const end = b + run_size;
         if (p = trim_whitespace<N>(p, end); p == end) [[unlikely]]
-            return status::bad_whitespace;
+            return setup::no_multispace ? status::bad_whitespace : status::expect_bytes;
 
         p = find_request_url_end_<N>(b, p, run_size);
         if  (p == end) [[unlikely]]
             return status::expect_bytes;
         if (is_whitespace(p[0]))
         {
-            p = trim_whitespace<N>(p, end);
-            const std::size_t len = static_cast<std::size_t>(p - b);
-            if ((len == run_size) | (out.advance(len) == status::excess)) [[unlikely]]
-                return status::error;
-            return {0, len};
+            p += 1;
+            if (p < end and (p = trim_whitespace<N>(p, end) == end) [[unlikely]]
+                return {setup::no_multispace ? status::bad_whitespace : status::expect_bytes,  static_cast<std::size_t>(p - b)};
+            return {0, static_cast<std::size_t>(p - b};
         }
         return status::unexpected_char;
     }
