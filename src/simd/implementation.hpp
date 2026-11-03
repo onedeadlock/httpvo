@@ -181,7 +181,7 @@ namespace httpvo::simd
                constexpr v64_t N10 = splat(0x80 - 0xa);
                constexpr v64_t NUM_NORM = constant::c30;
 
-               const v64_t v_norm_numbers = (v & constant::c7f) ^ NUM_NORM; // convert ['1' - '9'] to [0 - 9]
+               const v64_t v_norm_numbers = (v & constant::c7f) ^ NUM_NORM; // convert ['0' - '9'] to [0 - 9]
                return N10 + v_norm_numbers; // is greater than 9
           }
 
