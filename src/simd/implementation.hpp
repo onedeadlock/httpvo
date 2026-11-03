@@ -247,7 +247,7 @@ namespace httpvo::simd
                const u64_t v_no_overflow =  v | constant::c80;
                const u64_t not_htab      = (v_no_overflow ^ constant::c09) - constant::c01;
                const u64_t is_printable  = (v_no_overflow - constant::c20) ^ (v_no_overflow - constant::c7f); // v >= 0x20 and not DEL
-               return bits::andnot(not_htab, is_printable | v) & constant::c80;
+               return bits::andnot(is_printable & not_tab, v | constant::c80);
 #              endif
           }
 
