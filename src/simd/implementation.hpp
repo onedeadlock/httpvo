@@ -153,74 +153,74 @@ namespace httpvo::simd
                return ((a - (v & constant::c7f)) | (b + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
-          inline mask_t _is_letter(void) const
+          inline mask_t _is_not_letter(void) const
           {
-               constexpr v64_t A = splat(0x7f - 0x40);
-               constexpr v64_t Z = splat(0x7f + 0x5b);
+               constexpr v64_t A = splat(0x7f + 0x40);
+               constexpr v64_t Z = splat(0x7f - 0x5b);
                constexpr v64_t AZNORM = constant::c7f & constant::cdf;
 
                const v64_t v_norm_letter_case = v & AZNORM; // Convert ['a' - 'z'] to ['A' - 'Z']
-               const v64_t is_below_z = Z - v_norm_letter_case;
-               const v64_t is_above_a = A + v_norm_letter_case;
-               return is_below_z & is_above_a;
+               const v64_t is_above_z = Z + v_norm_letter_case;
+               const v64_t is_below_a = A - v_norm_letter_case;
+               return is_below_z | is_above_a;
           }
 
-          inline v64_t is_letter(void) const
+          inline v64_t is_not_letter(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON
                     const v64_t v_norm_letter_case = vand_u8(v, vcreate_u8(constant::cdf));
                     const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x41)); // flatten range so that x.byte < 26 for any alphabet char
-                    return vclt_u8(x, vdup_n_u8(0x1a));
+                    return vcgt_u8(x, vdup_n_u8(0x19));
 #              else
-                    return _is_letter() & bits::andnot(constant::c80, v);
+                    return _is_not_letter() | v & constant::c80;
 #              endif
           }
 
-          inline v64_t _is_number(void) const
+          inline v64_t _is_not_number(void) const
           {
-               constexpr v64_t N10 = splat(0x7f + 0xa);
+               constexpr v64_t N10 = splat(0x7f - 0xa);
                constexpr v64_t NUM_NORM = constant::c30;
 
-               const v64_t v_norm_numbers = v ^ NUM_NORM; // convert ['1' - '9'] to [0 - 9]
-               return N10 - (v & constant::c7f);          // is less than 10
+               const v64_t v_norm_numbers = (v & constant::c7f) ^ NUM_NORM; // convert ['1' - '9'] to [0 - 9]
+               return N10 + v_norm_numbers; // is greater than 9
           }
 
-          inline v64_t is_number(void) const
+          inline v64_t is_not_number(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON
-                   return vclt_u8(veor_u8(v, vcreate_u8(constant::c30)), vdup_n_u8(0xa));
+                   return vcgt_u8(veor_u8(v, vcreate_u8(constant::c30)), vdup_n_u8(0x9));
 #              else
-                   return _is_number() & bits::andnot(constant::c80, v);
+                   return _is_not_number() | v & constant::c80;
 #              endif
           }
 
-          inline v64_t _is_hyphen() const
+          inline v64_t _is_not_hyphen() const
           {
                constexpr v64_t HYPHEN_NORM = splat(0x2d);
-               const v64_t set_all_hypens_to_zero = v ^ HYPHEN_NORM;
-               return (set_all_hypens_to_zero & constant::c7f) + constant::c7f; // extract zero lanes
+               const v64_t set_all_hypens_to_zero = (v & constant::c7f) ^ HYPHEN_NORM;
+               return set_all_hypens_to_zero + constant::c7f; // extract zero lanes
           }
 
-          inline v64_t is_hyphen() const
+          inline v64_t is_not_hyphen() const
           {
 #              if HTTPVO_HAVE__ARM_NEON
-                   return vceq_u8(vdup_n_u8(0x2d));
+                   return vmvn_u8(vceq_u8(v, vdup_n_u8(0x2d)));
 #              else
-                   return _is_hyphen();
+                   return _is_not_hyphen() | v & constant::c80;
 #              endif
           }
 
           template<int ALPHAONLY>
-          inline mask_t ascii_fast_tchar(void) const
+          inline mask_t ascii_fast_not_tchar(void) const
           {
                if constexpr (ALPHAONLY)
-                    return is_letters();
+                    return is_not_letter();
                else
                {
 #                   if HTTPVO_HAVE__ARM_NEON
-                         return vorr_u8(vorr_u8(is_letter(), is_number()), is_hyphen());
+                         return vorr_u8(vorr_u8(is_not_letter(), is_not_number()), is_not_hyphen());
 #                   else
-                         return (_is_letter() | _is_number() | _is_hyphen()) & bits::andnot(constant::c80, v);
+                         return (_is_not_letter() | _is_not_number() | _is_not_hyphen()) | v & constant::c80;
 #                   endif
                }
           }
