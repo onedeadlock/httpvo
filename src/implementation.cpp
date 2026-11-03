@@ -183,8 +183,8 @@ namespace httpvo::Implementation
         if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
         {
             const simdv<8> v{b};
-            if (const mask_t outside = v.fast_not_tchar<ALPHAONLY>()) [[unlikely]] // some other char that is not A-Z0-9 or -, but may be valid
-                return _offset_of_non_tchar_mask(b, simdv<8>::countzero_bitmask(outside), 8);
+            if (const mask_t mask = v.fast_not_tchar<ALPHAONLY>()) [[unlikely]] // fast precheck
+                return _offset_of_non_tchar_mask(b, mask);
             return 8;
         }
         return _offset_of_non_tchar(b, 0, 8);
