@@ -171,8 +171,9 @@ namespace httpvo::simd
                     const v64_t v_norm_letter_case = vand_u8(v, vcreate_u8(constant::cdf));
                     const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x40)); // flatten range
                     return vcgt_u8(x, vdup_n_u8(0x5b - 0x40));
+#              else
+                    return _is_letter() & bits::andnot(constant::c80, v);
 #              endif
-               _is_letter() & bits::andnot(constant::c80, v);
           }
 
           inline v64_t _is_number(void) const
@@ -188,8 +189,9 @@ namespace httpvo::simd
           {
 #              if HTTPVO_HAVE__ARM_NEON
                    return vclt_u8(veor_u8(v, vcreate_u8(constant::c30)), vdup_n_u8(0xa));
+#              else
+                   return _is_number() & bits::andnot(constant::c80, v);
 #              endif
-               return _is_number() & bits::andnot(constant::c80, v);
           }
 
           inline v64_t _is_hyphen() const
@@ -203,8 +205,9 @@ namespace httpvo::simd
           {
 #              if HTTPVO_HAVE__ARM_NEON
                    return vceq_u8(vdup_n_u8(0x2d));
+#              else
+                   return _is_hyphen();
 #              endif
-               _is_hyphen();
           }
 
           template<int ALPHAONLY>
@@ -215,7 +218,7 @@ namespace httpvo::simd
                else
                {
 #                   if HTTPVO_HAVE__ARM_NEON
-                         return vorr_u8(vorr_u8(is_letter(), is_number()), is_letters());
+                         return vorr_u8(vorr_u8(is_letter(), is_number()), is_hyphen());
 #                   else
                          return (_is_letter() | _is_number() | _is_hyphen()) & bits::andnot(constant::c80, v);
 #                   endif
