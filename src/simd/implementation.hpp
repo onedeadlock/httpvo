@@ -153,16 +153,16 @@ namespace httpvo::simd
                return ((a - (v & constant::c7f)) | (b + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
-          inline mask_t _is_not_letter(void) const
+          inline v64_t _is_not_letter(void) const
           {
-               constexpr v64_t A = splat(0x7f + 0x40);
-               constexpr v64_t Z = splat(0x7f - 0x5b);
+               constexpr v64_t A = splat(0x80 + 0x40);
+               constexpr v64_t Z = splat(0x80 - 0x5b);
                constexpr v64_t AZNORM = constant::c7f & constant::cdf;
 
                const v64_t v_norm_letter_case = v & AZNORM; // Convert ['a' - 'z'] to ['A' - 'Z']
                const v64_t is_above_z = Z + v_norm_letter_case;
                const v64_t is_below_a = A - v_norm_letter_case;
-               return is_below_z | is_above_a;
+               return is_below_a | is_above_z;
           }
 
           inline v64_t is_not_letter(void) const
@@ -178,7 +178,7 @@ namespace httpvo::simd
 
           inline v64_t _is_not_number(void) const
           {
-               constexpr v64_t N10 = splat(0x7f - 0xa);
+               constexpr v64_t N10 = splat(0x80 - 0xa);
                constexpr v64_t NUM_NORM = constant::c30;
 
                const v64_t v_norm_numbers = (v & constant::c7f) ^ NUM_NORM; // convert ['1' - '9'] to [0 - 9]
@@ -218,9 +218,9 @@ namespace httpvo::simd
                else
                {
 #                   if HTTPVO_HAVE__ARM_NEON
-                         return vorr_u8(vorr_u8(is_not_letter(), is_not_number()), is_not_hyphen());
+                         return vand_u8(vand_u8(is_not_letter(), is_not_number()), is_not_hyphen());
 #                   else
-                         return (_is_not_letter() | _is_not_number() | _is_not_hyphen()) | v & constant::c80;
+                         return (_is_not_letter() & _is_not_number() & _is_not_hyphen()) | v & constant::c80;
 #                   endif
                }
           }
