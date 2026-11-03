@@ -235,6 +235,13 @@ namespace httpvo::simd
                return not_print | is_del;
           }
 
+          inline v64_t _not_printable_tab(const v64_t v)
+          {
+               // :: v < 0x80
+               const v64_t is_htab = (v ^ constant::c09) - constant::c01;
+               return _is_not_printable_no_tab(v) ^ is_htab;
+          }
+
           template<bool INCLUDE_TAB=setup::priotize_horizontal_tab>
           inline v64_t is_not_print_char(void) const
           {
@@ -246,9 +253,8 @@ namespace httpvo::simd
 #              else
                     const v64_t v_no_overflow = v & constant::c7f;
                     if constexpr (INCLUDE_TAB)
-                         const v64_t not_print = _not_printable_no_tab(v_no_overflow) ^ ((v_no_overflow ^ constant::c09) - constant::c01);
-                    else const v64_t not_print = _not_printable_no_tab(v_no_overflow);
-                    return not_print & bits::andnot(constant::c80, v);
+                         return _not_printable_tab(v_no_overflow) & bits::andnot(constant::c80, v);
+                    else return _not_printable_no_tab(v_no_overflow) & bits::andnot(constant::c80, v);
 #              endif
           }
 
