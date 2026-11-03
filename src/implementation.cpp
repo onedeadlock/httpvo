@@ -172,7 +172,7 @@ namespace httpvo::Implementation
 
     inline std::size_t _offset_of_non_tchar_mask(const u8_t * const b, const mask_t mask)
     {
-        for (mask_t m = mask; m; m = bits::least_set_bit(m))
+        for (mask_t m = mask; m; m = bits::clear_least_set_bit(m))
             if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] & 1) return offset;
         return 8;
     }
