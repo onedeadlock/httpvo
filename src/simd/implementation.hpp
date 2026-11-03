@@ -169,8 +169,8 @@ namespace httpvo::simd
           {
 #              if HTTPVO_HAVE__ARM_NEON
                     const v64_t v_norm_letter_case = vand_u8(v, vcreate_u8(constant::cdf));
-                    const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x40)); // flatten range
-                    return vcgt_u8(x, vdup_n_u8(0x5b - 0x40));
+                    const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x41)); // flatten range so that x.byte < 26 for any alphabet char
+                    return vclt_u8(x, vdup_n_u8(0x1a));
 #              else
                     return _is_letter() & bits::andnot(constant::c80, v);
 #              endif
