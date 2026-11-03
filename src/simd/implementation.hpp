@@ -211,7 +211,7 @@ namespace httpvo::simd
           }
 
           template<int ALPHAONLY>
-          inline mask_t ascii_fast_not_tchar(void) const
+          inline mask_t fast_not_tchar(void) const
           {
                if constexpr (ALPHAONLY)
                     return is_not_letter();
@@ -225,29 +225,30 @@ namespace httpvo::simd
                }
           }
 
-          inline u64_t non_printable(void) const
+          inline v64_t _not_printable_no_tab(const v64_t v)
           {
-               // Non printable characters here are 0x7f (DEL) or characters below 0x20 (sp)
-#              if HTTPVO_HAVE__ARM_NEON__
-                    assert(0);
-#              else
-                    // v + 1 wraps v == 0x7f to zero. The check becomes v + 1 > 0x20.  
-                    static constexpr u64_t u = constant::c80 | constant::c20;
-                    return (u - (((v & constant::c7f) + constant::c01) & constant::c7f)) & bits::andnot(constant::c80, v);
-#              endif
+               // :: v < 0x80
+               // @not_print: 159 - v where x < 32 (control bytes) leaves bit 7 set whereas x => 32 unsets it
+               // @is_del:    v + 1, shifts 0x7f to 0x80 setting bit 7
+               const v64_t not_print = constant::c9f - v;
+               const v64_t is_del    = v + constant::c01;
+               return not_print | is_del;
           }
 
-          inline u64_t non_printable_andn_tab(void) const
+          template<bool INCLUDE_TAB=setup::priotize_horizontal_tab>
+          inline v64_t is_not_print_char(void) const
           {
-               // Non printable characters here are 0x7f (DEL) or characters below 0x20 (sp) excluding tab
-#              if HTTPVO_HAVE__ARM_NEON__
-                    assert(0);
+#              if HTTPVO_HAVE__ARM_NEON
+                    const v64_t not_print = vorr_u8(vclt_u8(v, vcreate_u8(constant::c20)), vceq_u8(v, vcreate_u8(constant::c7f)));
+                    if constexpr (INCLUDE_TAB)
+                         return vorr_u8(not_print, vceq_u8(v, vcreate_u8(constant::c09)));
+                    else not_print;
 #              else
-               // individual compare for DEL, HTAB and >= 0x20
-               const u64_t v_no_overflow =  v | constant::c80;
-               const u64_t not_htab      = (v_no_overflow ^ constant::c09) - constant::c01;
-               const u64_t is_printable  = (v_no_overflow - constant::c20) ^ (v_no_overflow - constant::c7f); // v >= 0x20 and not DEL
-               return bits::andnot(is_printable & not_tab, v | constant::c80);
+                    const v64_t v_no_overflow = v & constant::c7f;
+                    if constexpr (INCLUDE_TAB)
+                         const v64_t not_print = _not_printable_no_tab(v_no_overflow) ^ ((v_no_overflow ^ constant::c09) - constant::c01);
+                    else const v64_t not_print = _not_printable_no_tab(v_no_overflow);
+                    return not_print & bits::andnot(constant::c80, v);
 #              endif
           }
 

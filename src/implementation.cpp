@@ -1,220 +1,390 @@
-#ifndef HTTPVO_IMPLEMENTATION_MAIN_HPP
-#define HTTPVO_IMPLEMENTATION_MAIN_HPP
+#ifndef HTTPVO_IMPLEMENTATION_SCALAR_HPP
+#define HTTPVO_IMPLEMENTATION_SCALAR_HPP
 #include "implementation.hpp"
-#include "scalar_impl.hpp"
 
 namespace httpvo::Implementation
-{   
-    template <int N>
-    inline bool req_header_value(void *in, const simdv<N>& v, u64_t lf, u64_t cr, u64_t crlf, bool done)
-    {
-        #if 0
-        static simdv<N> sp   = simdv<N>::splat('\x20');
-        static simdv<N> htab = simdv<N>::splat('\x9' );
-        bool is_valid = simdv<N>::is_zero(simdv<N>::_or(simdv<N>::gt_or_lt(v, '\x19', '\x7f'), simdv<N>::_or(simdv<N>::sign(v), simdv::cmpeq(v, htab))));
-        return not is_valid and ((cr & constant::msb_64 | lf) and crlf);
-        #endif
-    }
+{
+    using namespace simd;
 
-    template <int N> inline bool req_header_value_(const simdv<N>& v)
-    {
-        return false;
-    }
+    enum Character : u8_t {
+        HorizontalTab  = '\x09',
+        LineFeed       = '\x0a',
+        CarriageReturn = '\x0d',
+        NonPrintMax    = '\x19',
+        Space          = '\x20',
+        Colon          = '\x3a',
+        Delete         = '\x7f',
+    };
 
-    template<int N>
-    int http::parse_request_line(void *in, std::size_t size, const simdv<N>& v, u64_t& lf, u64_t& cr, u64_t& crlf)
+    struct type
     {
-        static const simdv<N> vsp   = simdv<N>::splat('\x20');
-        static const simdv<N> vhtab = simdv<N>::splat('\x9' );
-
-        if (this->unused and (crlf & 0b10)) [[unlikely]]
-            return  (crlf & crlf >> 2) & 0b100 ? -400 /* empty request */ : -400 /* blank line TODO: skip */;
-        if (state.has_trailing_ret()) [[unlikely]]
+        struct maskoffset
         {
-            if (not (lf & 0b1))
-                return -400;
-            lf &= ~0x1ULL;
-            reqline.req_line[out_reader.at()] -= 1; // -cr
-            in_reader.incr_by(1);                   // +lf
-            goto end;
-        }
+            std::size_t offset;
+            mask_t mask;
+            constexpr maskoffset(const std::size_t i=0, const mask_t m=0) noexcept : offset{i}, mask{m} {}
+        };
 
-        const u64_t sp    = simdv<N>::cmp_eq(v, vsp, vhtab).to_bitmask();
-        const u64_t tchar = simdv<N>::gt_or_lt(v, '\x20', '\x7f').to_bitmask() | ~U64(state.has_trailing_whitespace()) & bits::ltrim(sp); // valid whitespace
-        if ((~tchar | lf | (cr & ~simd<N>::msb)) & bits::tzmask(crlf))
-            return -400; /* invalid token */
-        this->unused = false;
-        u64_t mask = (sp |cr | lf) & bits::blsmask(cr | lf); 
-        for (; mask and not out_reader.is_zero(); mask &= mask - 1)
-            reqline.req_line[out_reader.decr()] = in_reader.at() + bits::tzcnt(mask);
+        friend constexpr maskoffset operator+(const maskoffset m, const std::size_t i)
+        { return {m.offset + i, m.mask}; }
+        friend constexpr bool operator<(const maskoffset m, const std::size_t i)
+        { return m.offset < i; }
+        friend constexpr bool operator==(const maskoffset m, const std::size_t i)
+        { return m.offset == i; }
+    };
 
-        if (not crlf)
-        {
-            state.set_trailing_ret(static_cast<bool>(cr & simd<N>::msb));
-            state.set_trailing_whitespace(static_cast<bool>(sp & simd<N>::msb));
-            in_reader.incr();
-            return -(mask and out_reader.is_zero());
-        }
-        end:
-        crlf &= crlf - 1;
-        in_reader.incr_by(reqline.req_line[out_reader.at() + 1] + 2); // +2 for cr and lf
-        state.completed_request_line(true);
-        return -(mask or req_version_tag(in, Reqtype::index[this->req_type]) isnot http_1);
+    template<typename T>
+    inline T is_whitespace(const T c)
+    {
+        static_assert(std::is_integral<T>() or simd::is_simd_v<T>());
+        return (c == Character::Space) | (c == Character::HorizontalTab);
     }
 
-    template <typename T, T out_size, int N>
-    int http::parse_header(void *in, size_t in_size, req<T, out_size>& out, const simdv<N>& v, u64_t lf, u64_t cr, u64_t __crlf)
+    // see test/scripts/generate_shuffle_table.py for table generation and comments.
+    alignas(16) static constexpr u8_t TCHAR_CLASS_LUT[32]{
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28,
+        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00
+    };
+
+    // see test/scripts/generate_shuffle2_table.py for table generation and comments.
+    alignas(16) static constexpr u8_t CONTROL_CHAR_CLASS_LUT[32]{
+        002, 002, 002, 002, 002, 002, 002, 002, 002, 001, 002, 002, 002, 002, 002, 003,
+        001, 000, 127, 127, 127, 127, 127, 002, 127, 127, 127, 127, 127, 127, 127, 127,
+    };
+
+    template<simd::VWidth N>
+    inline mask_t is_control_char(const simdv<N>& v)
     {
-        static const simdv<N> v_col = simdv<N>::splat('\x3a');
-        u64_t crlf = __crlf; // copy
-        auto set_header = [](auto& cp, auto& np, auto pos, auto mask, int skip)
+        const simdv<N> CTRL_LO = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
+        const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
+        if constexpr (setup::neon)
+        {
+            if constexpr (not setup::arm64)
+                return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); // no vqtbl1q
+            else 
+                return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
+        }    
+        return v.shuf_table(CTRL_LO) > ((v >> 4) & 0xf).shuf_table(CTRL_HI);
+    }
+
+    template<simd::VWidth N>
+    inline mask_t is_non_tchar(const simdv<N>& v)
+    {
+        const simdv<N> TCHAR_LO = simdv<N>::load_tbl1(TCHAR_CLASS_LUT + 00);
+        const simdv<N> TCHAR_HI = simdv<N>::load_tbl1(TCHAR_CLASS_LUT + 16);
+
+        if constexpr (setup::neon)
+           return (v & 0xf).shuf_table(TCHAR_LO).andeqz((v >> 4).shuf_table(TCHAR_HI));
+        // skipped first 'v & 0xf' since v >= 0x80 falls to 0 and that is what we need
+        return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
+     }
+
+    inline int is_not_end_of_line_v(const u8_t * const b, auto& e)
+    {
+        static constexpr u32_t CRLF = 0x0a0d, CRLFCRLF = 0x0a0d0a0d;
+        const u32_t v = simdv<8>::_load_u32(b);
+        e = (v == CRLFCRLF);
+        return (v & 0xffffu) != CRLF;
+    }
+
+     inline int is_not_end_of_line_p(const u8_t * const b, auto& e)
+    {
+        const int _is_not_end_of_line = (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
+        e = (b[2] == Character::CarriageReturn and b[3] == Character::LineFeed);
+        return _is_not_end_of_line;
+    }
+
+    inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
+    {
+        // TODO: special function for mixed crlf and lf as end of line char. Fix return values not matching status code
+        if constexpr (setup::end_of_line_is_line_feed)
+            pass();
+
+        if (rem > 3) [[likely]]
+        {
+            if constexpr (not setup::no_vectorize and setup::little_endian)
+                return is_not_end_of_line_v(b, this->end_of_parse);
+            return is_not_end_of_line_p(b, this->end_of_parse);
+        }
+        if (not rem) [[unlikely]]
+            return status::expect_bytes | (b[0] != Character::CarriageReturn); 
+         return (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
+    }
+
+    template<simd::VWidth N, bool ISTRAIL=0>
+    [[nodiscard]] inline status http::parse_header(u8_t * const b, u8_t *p, header_view& out, const std::size_t in_size, const std::size_t run_size) noexcept
+    {
+        static_assert(N == 16 or N == 32);
+        const u8_t * const stop = b + (not ISTRAIL ? bits::align(run_size, N) : run_size);
+        bool parsing_value = false;
+
+        for (; p < stop; p += N)
+        {
+            simdv<N> v(p);
+            if (not parsing_value)
             {
-                u64_t end = pos + tzcnt(mask);
-                cp.len = end - cp.pos;
-                np.pos = end + skip;
-            };
-
-        if (state.has_pending_value())
-        {
-            auto& value = out[out_reader.at()].value;
-            if (not crlf)
-                return in_reader.incr(), req_header_value(v);
-            set_header(value, out[out_reader.incr()].name, in_reader.at(), crlf, 2);
-            crlf &= crlf - 1;
-            state.set_pending_value(false);
-            if (not (req_header_value(v, lf, cr, __crlf) or trim_whitespace<T>(in, value.pos, value.len))) [[unlikely]]
-                return -400;
-        }
-        for (u64_t col = simdv<N>::cmp_eq(v, v_col).to_bitmask(); true; )
-        {
-            auto& name = out[out_reader.at()].name, &value = out[out_reader.at()].value;
-            const u64_t first_col = bits::lsb(col);
-
-            if constexpr (not OPTIMIZE_FOR_MOST_CASE)
-                if (crlf and bits::lsb(crlf) < bits::lsb(col)) [[unlikely]]
-                    return -400;
-            if (not col)
-                return in_reader.incr();
-            // set position and length of name
-            set_header(name, value, in_reader.at(), col, 1);
-            if (not crlf)
-            {
-                state.set_pending_value(true);
-                in_reader.incr();
-                return req_header_value(v);
+                mask_t non_tchar = is_non_tchar(v);
+                if (not non_tchar)
+                    continue;
+                const u8_t * const q = p + simdv<N>::countzero_bitmask(non_tchar);
+                if (q[0] != Character::Colon) [[unlikely]]
+                    return status::unexpected_char;
+                out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
+                parsing_value = true;
             }
-            // set position and length of value
-            set_header(value, out[out_reader.incr()].name, in_reader.at(), crlf & bits::xlsfill(first_col), 2);
-            col  &= bits::xlsfill(crlf);
-            crlf &= crlf - 1;
-            bool all_wsp = trim_whitespace<T>(in, value.pos, value.len);
-            if (all_wsp or not req_header_name(in, name.len) or not req_header_value(v, lf, cr, __crlf, 0)) [[unlikely]]
-                return -400;
-        }
-        in_reader.incr();
-        return 0;
-    }
-
-    template <typename T, T out_size, int N>
-    inline int http::parse(void *in, size_t in_size, req<T, out_size> &out, std::size_t run_size, std::size_t r)
-    {
-        // only handle 32 and 64 byte chunks
-        static_assert(N >= 32 and (N & 1) == 0);
-
-        u8_t *b   = reinterpret_cast<u8_t>(in) + in_reader.size();
-        u8_t *end = reinterpret_cast<u8_t>(in) + run_size;
-
-        do {
-            static const simdv v_lf = simdv<N>::splat('\xa');
-            static const simdv v_cr = simdv<N>::splat('\xd');
-
-            simdv<N> v = simd<N>::load(b);
-
-            u64_t lf   = simdv<N>::cmp_eq(v, v_lf ).to_bitmask();
-            u64_t cr   = simdv<N>::cmp_eq(v, v_cr ).to_bitmask();
-            u64_t crlf = cr & (lf << 1);
-
-            if (not state.completed_request_line() and parse_request_line<N>(in, size, v, lf, cr, crlf) < 0) [[unlikely]]
-               return -400;
-            if (state.completed_request_line() and parse_header<T, out_size, N>(in, in_size, out, v, lf, cr, crlf) < 0) [[unlikely]]
-                return -400;
-            
-            // maybe the end of us parsing this buffer (eop)
-            if (auto eop = crlf & crlf >> 2)
-                return 0;
-            // next chunk
-            b += N;
-            // or maybe eop is incomplete; cases like cr, crlf, crlfcr
-            if (auto eop = (lf | cr) >> N - 3; n > 0b100) [[unlikely]]
+            if (mask_t control_char = is_control_char(v))
             {
-                // fast fail for (cr/lf)_*Non-crlf*_(cr/lf)
-                if (eop & 0b101) [[unlikely]]
-                    return -400;
-                // the top three bits of intN in the eop mask can be 100, 110 or 111
-                // in any of the cases, tab[top_three_bits_in_eop] gives us the number of bytes we need to check
-                // also tab[tab[last_three_bits_in_eop]] gives the number of times we need to shift backward in order to read a complete crlfcrlf word
-                static constexpr alignas(8) u8_t eop_tab[8]{0, 2, 1, 0, 3, 0, 2, 1};
-                int n = eop_tab[eop];
-                if (b != end or r >= n) [[likely]]
-                    return -(reinterpret_cast<u32_t *>(b - N - eop_tab[n])[0] == 0xd0a0d0a);
-                return -(this->n_bytes_to_complete = n);  // we need atleast <= 3 bytes to confirm an exact eop
+                const u8_t * const q = p + simdv<N>::countzero_bitmask(control_char);
+                const std::size_t q_offset = static_cast<std::size_t>(q - b);
+                if (is_not_end_of_line(q, run_size - q_offset)) [[unlikely]]
+                    return status::unexpected_char;
+                return out.set_value_end(q_offset, b);
             }
-        } while (b != end);
-        return 0;
+        }
+        return status::expect_bytes;
+    }
+    
+    // 2 - name token; 3 = value token
+    static constexpr u8_t TCHAR_LUT[256]{
+        0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2,
+        2, 3, 2, 3, 3, 3, 3, 3, 2, 2, 3, 3, 2, 3, 3, 2,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2,
+        2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 2, 0, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+
+    inline std::size_t _offset_of_non_tchar(const u8_t * const b, const std::size_t i, const std::size_t len)
+    {
+        std::size_t j = i;
+        for (; j < len and TCHAR_LUT[b[j]] & 1; j++) pass();
+        return j;
     }
 
-    template <typename T, T out_size>
-    int http::nparse_no_rescan(void *in, size_t in_size, size_t run_size, req<T, out_size> &out)
+    inline std::size_t _offset_of_non_tchar_mask(const u8_t * const b, const mask_t mask)
     {
-        assert(in != std::nullptr and out != std::nullptr and in_size >= run_size); 
+        for (mask_t m = mask; m; m = bits::least_set_bit(m))
+            if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] & 1) return offset;
+        return 8;
+    }
 
-        /*
-         *  Specialization 
-         */
-        static constexpr int ceil = 15;
+    template<bool ALPHAONLY>
+    make_flat inline std::size_t offset_of_non_tchar(const u8_t * const b)
+    {
+        if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
+        {
+            const simdv<8> v{b};
+            if (const mask_t outside = v.fast_not_tchar<ALPHAONLY>()) [[unlikely]] // some other char that is not A-Z0-9 or -, but may be valid
+                return _offset_of_non_tchar_mask(b, simdv<8>::countzero_bitmask(outside), 8);
+            return 8;
+        }
+        return _offset_of_non_tchar(b, 0, 8);
+    }
 
-        if (auto n = this->n_bytes_to_complete)
+    template<bool ALPHAONLY>
+    make_flat inline std::size_t find_non_tchar(const u8_t * const b, const std::size_t len)
+    {
+        if (len < 8) return _offset_of_non_tchar(b, 0, len);
+
+        const u8_t * const end = b + (len - 8);
+        for (const u8_t *p = b; p < end; p += 8)
         {
-            static constexpr alignas(4) u8_t eop_shift[4] = {0, 2, 1, 0};
-            if (run_size < in_reader.size() or (run_size - in_reader.size()) < n)
-                return 0; /* need more bytes */
-            return -(reinterpret_cast<u32_t *>(b + in_reader.at() - eop_shift[n])[0] == 0xd0a0d0a);
+            if (const std::size_t offset = offset_of_non_tchar<ALPHAONLY>(p); offset < 8)
+                return offset + static_cast<std::size_t>(p - b);
         }
-        int stat = 0;
-        auto n = run_size & ~(simd::max - 1);
-        auto r = run_size &  (simd::max - 1);
-        // First, try parsing buffer with specialization size
-        if (this->reset(run_size, simd::max); n != 0)
-            if (stat = parse<T, out_size, simd::max>(in, in_size, out, n, r); parse_failed(stat) or r == 0) [[unlikely]]
-                return stat;
-        // Parse any 32 bytes
-        if (in_reader.set_incr(32); r > 31) [[likely]]
+        return offset_of_non_tchar(end) + (len - 8);
+    }
+
+    inline std::size_t _offset_of_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
+    {
+        std::size_t j = i;
+        for (; j < len and TCHAR_LUT[b[j]]; j++) pass();
+        return j;
+    }
+
+    inline std::size_t offset_of_bad_char_in_value(const u8_t *const b)
+    {
+        if constexpr (setup::no_vectorize)
+            return _offset_of_bad_char_in_value(b, 0, 8);
+        if (const mask_t offset = simdv<8>(b).is_not_print_char())
+            return simdv<8>::countzero_bitmask(offset);
+        return 8;
+    }
+
+    make_flat inline std::size_t find_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
+    {
+        if (len < 8) return _offset_of_bad_char_in_value(b, i, len);
+
+        const u8_t * const end = b + (len - 8);
+        for (const u8_t *p = b + i; p < end; p += 8)
         {
-            n += r; r &= (32 - 1);
-            if (stat = parse<T, out_size, 32>(in, in_size, out, n, r); parse_failed(stat) or r == 0) [[unlikely]]
-                return stat;
+            if (const std::size_t offset = offset_of_bad_char_in_value(p); offset < 8)
+                return static_cast<std::size_t>(p - b) + offset;
         }
-        // TRAILING BYTES
-        // In order to keep things clean, we avoid backtracking and reparsing past bytes
-        // Anything below 31, falls through to the scalar path. since N < 31, it should be cheap
-        // However, if AVX512 is enabled, and it's desired, we could use mask_load to handle the trailing bytes
-        if constexpr (simd<simd::max>::spec is simd::AVX512)
+        return offset_of_bad_char_in_value(end) + (len - 8);
+    }
+
+    inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t run_size, ReqLine& out)
+    {
+        if (const std::size_t offset = find_non_tchar<1>(b, run_size))
+         {
+            if (not is_whitespace(b[offset])) [[unlikely]]
+                return status::unexpected_char;
+            out.advance(offset);
+            return {0, offset};
+         }
+        return status::expect_bytes;
+    }
+
+    template <int X, int Y, simd::VWidth N>
+    inline std::size_t is_out_of_range(const u8_t *b)
+    {
+        static_assert(X == 0x21 and Y == 0x7e);
+        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
+            return simdv<N>::countzero_bitmask(mask);
+        return N;
+    };
+
+    template<>
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
+    {
+        static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
+        return static_cast<const i8_t>(*b + 0x5f) < -0x22;
+    }
+
+    template<simd::VWidth N>
+    inline const u8_t * trim_whitespace(const u8_t *p, const u8_t * const end)
+    {
+        if (not is_whitespace(p[0]))
+            return p;
+        if constexpr (not setup::no_multispace)
         {
-            u8_t *b = reinterpret_cast<u8_t *>(in + n);
-            // The cost here is that, we read memory twice: 1 for mask and 1 inside the parser itself
-            // TODO: remove this path, if it doesn't prove any benefit
-            alignas(32) u8_t bv[32];
-            __mmask32 mask  = (0x1ULL << r) - 1;
-            __mm256i  fill  = _mm256_set1_epi8('\x65'); // fill dummy but valid tchar
-            __mm256i in_mask_load = _mm256_mask_loadu_epi8(fill, mask, b);
-            __mm512i dup_hi = _mm256_or_si256(kb, _mm256_srli_si256(in_mask_load, 32 - r));
-            _mm512_store_epi32(bv, dup_hi);
-            if (stat = parse<T, out_size, 32>(in, in_size, out, 32, r)) [[unlikely]]
-                return stat;
+            constexpr mask_t all_whitespace = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
+            for (const u8_t * const stop = end - N; p < stop; p += N)
+            {
+                const mask_t mask = is_whitespace(simdv<N>{p});
+                if (mask != all_whitespace) [[likely]]
+                    return p + simdv<N>::countzero_bitmask(mask);
+            }
+            const mask_t mask = is_whitespace(simdv<N>{stop});
+            if (mask != all_whitespace) [[likely]]
+                return (end - N) + simdv<N>::countzero_bitmask(mask);
         }
-        pure_scalar:
+        return end;
+    }
+
+    template<>
+    inline const u8_t * trim_whitespace<0>(const u8_t *p, const u8_t * const end)
+    {
+        if (is_whitespace(p[0]))
+        {
+            if constexpr (setup::no_multispace) return end;
+            else while (++p < end and is_whitespace(p[0])) pass();
+        }
+        return p;
+    }
+
+    template <simd::VWidth N>
+    inline const u8_t * find_request_url_end_(const u8_t * const b, const u8_t *p, const std::size_t len)
+    {
+        const u8_t * const stop = b + (len - N);
+        for (; p < stop; p += N)
+        {
+            if (const std::size_t offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
+                return p + offset;
+        }
+        return stop + is_out_of_range<0x21, 0x7e, N>(stop);
+    }
+
+    template <>
+    inline const u8_t * find_request_url_end_<1>(const u8_t * const b, const u8_t *p, const std::size_t len)
+    {
+       
+        for ( const u8_t *const stop = b + len; p < stop and not is_out_of_range<0x21, 0x7e, 1>(p); p += 1)
+            pass();
+        return p;
+    }
+
+    inline status::statat_t __status_bad_or_expect(const u8_t * const b, const u8_t * const p)
+    {
+        if constexpr (setup::no_multispace)
+            return {status::bad_whitespace, static_cast<std::size_t>(p - b)};
+        else return {status::expect_bytes,  static_cast<std::size_t>(p - b)};
+    }
+    template <simd::VWidth N>
+    inline status::statat_t find_request_url_end(const u8_t * const b, const u8_t *p, const std::size_t run_size, header_view& out)
+    {
+        /* TODO: check run_size logic. run_size here is not actual buffer size but the buffer_size - method end offset */
+        if constexpr (setup::no_vectorize)
+            return find_request_url_end<1>(b, p, run_size);
+        if (run_size < N)
+        {
+            if constexpr (N > 8) return find_request_url_end<8>(b, p, run_size, out);
+            else return find_request_url_end<1>(b, p, run_size, out);
+        }
+        const u8_t *const end = b + run_size;
+        if (p = trim_whitespace<N>(p, end); p == end) [[unlikely]]
+            return  __status_bad_or_expect(b, p);
+
+        p = find_request_url_end_<N>(b, p, run_size);
+        if  (p == end) [[unlikely]]
+            return status::expect_bytes;
+        if (is_whitespace(p[0]))
+        {
+            p += 1;
+            if (p < end and (p = trim_whitespace<N>(p, end) == end)) [[unlikely]]
+                return  __status_bad_or_expect(b, p);
+            return {0, static_cast<std::size_t>(p - b)};
+        }
+        return status::unexpected_char;
+    }
+
+    template<simd::VWidth N=8>
+    [[nodiscard]] inline status::statat_t parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    {
+        if (run_size < 8)
+            return status::expect_bytes;
+        const status::statat_t meth_end = find_request_method_end(b, run_size, out);
+        if (meth_end != 0)
+            return meth_end;
+        const statat_t val_end = find_request_url_end<N>(b, p + meth_end.offset, run_size, out);
+        if (val_end != 0)
+            return val_end;
+        // TODO: end of line
+    }
+
+    template<simd::VWidth N=8, bool ISTRAIL=0>
+    [[nodiscard]] inline status parse_response(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    {
         // TODO
         return 0;
     }
-}
-#endif
+
+    template<>
+    [[nodiscard]] inline status http::parse_header<0>(u8_t * const b, u8_t *b_run [[maybe_unused]], header_view& out, const std::size_t in_size [[maybe_unused]], const std::size_t run_size) noexcept
+    {  
+        const std::size_t n_offset = find_non_tchar<0>(b, run_size);
+        if (n_offset == run_size) [[unlikely]]
+            return status::expect_bytes;
+        if (b[n_offset] != Character::Colon) [[unlikely]]
+            return status::unexpected_char;
+        out.set_name_end(n_offset, nullptr);
+        
+        const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
+        if (v_offset == run_size) [[unlikely]]
+            return status::expect_bytes;
+        if (is_not_end_of_line(b + v_offset, run_size - v_offset)) [[unlikely]]
+            return status::unexpected_char;
+        return out.set_value_end(v_offset, reinterpret_cast<const u8_t *>(b));
+    }
+} // NAMESPACE::HTTVO
+#endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP
