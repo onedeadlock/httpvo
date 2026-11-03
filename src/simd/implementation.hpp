@@ -8,14 +8,6 @@ namespace httpvo::simd
      using VWidth = u64_t;
      using mask_t = u64_t;
 
-     static constexpr VWidth TRAIL = 0;
-#    ifndef HTTPVO_NO_64B
-         static constexpr VWidth max = 64;
-#    else
-         static constexpr VWidth max = 32;
-#    endif
-     static constexpr     VWidth min = 8;
-
      template <VWidth N>
      struct simdv;
 
@@ -127,7 +119,7 @@ namespace httpvo::simd
           }
 
           template <u8_t a>
-          inline simdv cmplt(void) const
+          inline v64_t cmplt(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                     return vclt_u8(v, vdup_n_u8(a));
@@ -138,7 +130,7 @@ namespace httpvo::simd
           }
 
           template <u8_t A>
-          inline u64_t cmpgt(u64_t v)
+          inline v64_t cmpgt(u64_t v)
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                     return vcgt_u8(v, vdup_n_u8(a));
@@ -148,42 +140,86 @@ namespace httpvo::simd
                return (v | (a + (v & constant::c7f))) & constant::c80;
           }
 
-          template <u8_t a, u8_t b>
-          inline simdv cmpngt_lt(void) const
+          template <u8_t A, u8_t B>
+          inline v64_t cmpngt_lt(void) const
           {
-               static_assert(a < 0x7f && b < 0x80);
+               static_assert(A < 0x7f && B < 0x80);
 #              if HTTPVO_HAVE__ARM_NEON__
-                    uint8x8_t x = vsub_u8(v, vdup_n_u8(a));
-                    return vcgt_u8(w, vdup_n_u8(b - a));
+                    uint8x8_t x = vsub_u8(v, vdup_n_u8(A));
+                    return vcgt_u8(x, vdup_n_u8(B - A));
 #              endif
-               static constexpr v64_t aa = splat(0x7f + a);
-               static constexpr v64_t bb = splat(0x7f - b);
-               return ((aa - (v & constant::c7f)) | (bb + (v & constant::c7f))) & bits::andnot(constant::c80, v);
+               static constexpr v64_t a = splat(0x7f + A);
+               static constexpr v64_t b = splat(0x7f - B);
+               return ((a - (v & constant::c7f)) | (b + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
-          inline simdv ascii_letters(void) const
+          inline mask_t _is_letter(void) const
           {
-#              if HTTPVO_HAVE__ARM_NEON__
-                    assert(0);
-#              else
-                    return (constant::Z - (v & constant::AZ_const)) & (constant::A + (v & constant::AZ_const)) & bits::andnot(constant::c80, v);
+               constexpr v64_t A = splat(0x7f - 0x40);
+               constexpr v64_t Z = splat(0x7f + 0x5b);
+               constexpr v64_t AZNORM = constant::c7f & constant::cdf;
+
+               const v64_t v_norm_letter_case = v & AZNORM; // Convert ['a' - 'z'] to ['A' - 'Z']
+               const v64_t is_below_z = Z - v_norm_letter_case;
+               const v64_t is_above_a = A + v_norm_letter_case;
+               return is_below_z & is_above_a;
+          }
+
+          inline v64_t is_letter(void) const
+          {
+#              if HTTPVO_HAVE__ARM_NEON
+                    const v64_t v_norm_letter_case = vand_u8(v, vcreate_u8(constant::cdf));
+                    const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x40)); // flatten range
+                    return vcgt_u8(x, vdup_n_u8(0x5b - 0x40));
 #              endif
+               _is_letter() & bits::andnot(constant::c80, v);
           }
 
-          inline simdv ascii_numbers(void) const
+          inline v64_t _is_number(void) const
           {
-               const simdv x = v ^ constant::c30;
-               return x.cmplt<10>();
+               constexpr v64_t N10 = splat(0x7f + 0xa);
+               constexpr v64_t NUM_NORM = constant::c30;
+
+               const v64_t v_norm_numbers = v ^ NUM_NORM; // convert ['1' - '9'] to [0 - 9]
+               return N10 - (v & constant::c7f);          // is less than 10
           }
 
-          inline simdv ascii_hyphen(void) const
+          inline v64_t is_number(void) const
           {
-               return cmpeq(constant::hyphen);
+#              if HTTPVO_HAVE__ARM_NEON
+                   return vclt_u8(veor_u8(v, vcreate_u8(constant::c30)), vdup_n_u8(0xa));
+#              endif
+               return _is_number() & bits::andnot(constant::c80, v);
           }
 
+          inline v64_t _is_hyphen() const
+          {
+               constexpr v64_t HYPHEN_NORM = splat(0x2d);
+               const v64_t set_all_hypens_to_zero = v ^ HYPHEN_NORM;
+               return (set_all_hypens_to_zero & constant::c7f) + constant::c7f; // extract zero lanes
+          }
+
+          inline v64_t is_hyphen() const
+          {
+#              if HTTPVO_HAVE__ARM_NEON
+                   return vceq_u8(vdup_n_u8(0x2d));
+#              endif
+               _is_hyphen();
+          }
+
+          template<int ALPHAONLY>
           inline mask_t ascii_fast_tchar(void) const
           {
-               return ascii_letters() | ascii_numbers() | ascii_hyphen();
+               if constexpr (ALPHAONLY)
+                    return is_letters();
+               else
+               {
+#                   if HTTPVO_HAVE__ARM_NEON
+                         return vorr_u8(vorr_u8(is_letter(), is_number()), is_letters());
+#                   else
+                         return (_is_letter() | _is_number() | _is_hyphen()) & bits::andnot(constant::c80, v);
+#                   endif
+               }
           }
 
           inline u64_t non_printable(void) const

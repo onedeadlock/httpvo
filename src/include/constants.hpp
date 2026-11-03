@@ -18,12 +18,6 @@ namespace httpvo::constant
 
     static constexpr u64_t compress = 0x0002040810204081ULL;
 
-    static constexpr u64_t  hyphen = U64('\x2d') * c01;
-    
-    static constexpr u64_t AZ_const = c7f & cdf;
-    static constexpr u64_t A = U64('\x7f' - '\x40') * c01;
-    static constexpr u64_t Z = U64('\x7f' + '\x5b') * c01;
-
     static constexpr u64_t DeBruijn64_const = 0x03f79d71b4cb0a89ULL;
 
     static constexpr u8_t DeBruijn64_seq[64]{
