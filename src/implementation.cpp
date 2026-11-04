@@ -16,28 +16,12 @@ namespace httpvo::Implementation
         Delete         = '\x7f',
     };
 
-    struct type
-    {
-        struct maskoffset
-        {
-            std::size_t offset;
-            mask_t mask;
-            constexpr maskoffset(const std::size_t i=0, const mask_t m=0) noexcept : offset{i}, mask{m} {}
-        };
-
-        friend constexpr maskoffset operator+(const maskoffset m, const std::size_t i)
-        { return {m.offset + i, m.mask}; }
-        friend constexpr bool operator<(const maskoffset m, const std::size_t i)
-        { return m.offset < i; }
-        friend constexpr bool operator==(const maskoffset m, const std::size_t i)
-        { return m.offset == i; }
-    };
-
-    template<typename T>
+    template<typename T, bool SPONLY>
     inline T is_whitespace(const T c)
     {
         static_assert(std::is_integral<T>() or simd::is_simd_v<T>());
-        return (c == Character::Space) | (c == Character::HorizontalTab);
+        if constexpr (SPONLY) return c == Character::Space;
+        else return (c == Character::Space) | (c == Character::HorizontalTab);
     }
 
     // see test/scripts/generate_shuffle_table.py for table generation and comments.
@@ -120,10 +104,10 @@ namespace httpvo::Implementation
 
         for (; p < stop; p += N)
         {
-            simdv<N> v(p);
+            simdv<N> v{p};
             if (not parsing_value)
             {
-                mask_t non_tchar = is_non_tchar(v);
+                mask_t non_tchar = is_non_tchar<N>(v);
                 if (not non_tchar)
                     continue;
                 const u8_t * const q = p + simdv<N>::countzero_bitmask(non_tchar);
@@ -132,7 +116,7 @@ namespace httpvo::Implementation
                 out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
                 parsing_value = true;
             }
-            if (mask_t control_char = is_control_char(v))
+            if (mask_t control_char = is_control_char<N>(v))
             {
                 const u8_t * const q = p + simdv<N>::countzero_bitmask(control_char);
                 const std::size_t q_offset = static_cast<std::size_t>(q - b);
@@ -180,10 +164,9 @@ namespace httpvo::Implementation
     template<bool ALPHAONLY>
     make_flat inline std::size_t offset_of_non_tchar(const u8_t * const b)
     {
-        if constexpr (setup::optimize_for_most_case and not setup::no_vectorize)
+        if constexpr (not setup::no_vectorize)
         {
-            const simdv<8> v{b};
-            if (const mask_t mask = v.fast_not_tchar<ALPHAONLY>()) [[unlikely]] // fast precheck
+            if (const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>()) [[unlikely]] // fast pre-check
                 return _offset_of_non_tchar_mask(b, mask);
             return 8;
         }
@@ -193,8 +176,8 @@ namespace httpvo::Implementation
     template<bool ALPHAONLY>
     make_flat inline std::size_t find_non_tchar(const u8_t * const b, const std::size_t len)
     {
-        if (setup::optimize_for_most_case or len < 8) return _offset_of_non_tchar(b, 0, len);
-
+        if (setup::optimize_for_most_case or len < 8)
+            return _offset_of_non_tchar(b, 0, len);
         const u8_t * const end = b + (len - 8);
         for (const u8_t *p = b; p < end; p += 8)
         {
@@ -211,11 +194,11 @@ namespace httpvo::Implementation
         return j;
     }
 
-    inline std::size_t offset_of_bad_char_in_value(const u8_t *const b)
+    inline std::size_t offset_of_bad_char_in_value(const u8_t *const p)
     {
         if constexpr (setup::no_vectorize)
             return _offset_of_bad_char_in_value(b, 0, 8);
-        if (const mask_t offset = simdv<8>(b).is_not_print_char())
+        if (const mask_t offset = simdv<8>(p).is_not_print_char())
             return simdv<8>::countzero_bitmask(offset);
         return 8;
     }
@@ -237,36 +220,35 @@ namespace httpvo::Implementation
     {
         if (const std::size_t offset = find_non_tchar<1>(b, run_size))
          {
-            if (not is_whitespace(b[offset])) [[unlikely]]
+            if (not is_whitespace<u8_t, 1>(b[offset])) [[unlikely]]
                 return status::unexpected_char;
-            out.advance(offset);
-            return {0, offset};
+            return {out.advance(offset), offset};
          }
         return status::expect_bytes;
     }
 
     template <int X, int Y, simd::VWidth N>
-    inline std::size_t is_out_of_range(const u8_t *b)
+    inline std::size_t is_out_of_range(const u8_t * const p)
     {
         static_assert(X == 0x21 and Y == 0x7e);
-        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
+        if (const mask_t mask = simdv<N>(p).template cmpngt_lt<X, Y>()) [[unlikely]]
             return simdv<N>::countzero_bitmask(mask);
         return N;
     };
 
     template<>
-    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const p)
     {
         static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
-        return static_cast<const i8_t>(*b + 0x5f) < -0x22;
+        return static_cast<const i8_t>(*p + 0x5f) < -0x22;
     }
 
     template<simd::VWidth N>
-    inline std::size_t first_non_whitespace(const u8_t *p, const u8_t * const end)
+    inline std::size_t first_non_whitespace(const u8_t * const p)
     {
-         constexpr mask_t All_whitespace = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
-         const mask_t mask = is_whitespace(simdv<N>{p});
-         if (mask != All_whitespace) [[likely]]
+         constexpr mask_t ALL_WHITESPACE = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
+         const mask_t mask = is_whitespace<simdv<N>, 1>(simdv<N>(p));
+         if (mask != ALL_WHITESPACE) [[likely]]
               return simdv<N>::countzero_bitmask(mask);
           return N;
 }
@@ -274,7 +256,7 @@ namespace httpvo::Implementation
     template<simd::VWidth N>
     inline const u8_t * trim_whitespace(const u8_t *p, const u8_t * const end)
     {
-        if (not is_whitespace(p[0])) [[likely]]
+        if (not is_whitespace<u8_t, true>(p[0])) [[likely]]
             return p;
         if constexpr (setup::no_multispace)
             return end;
@@ -283,20 +265,20 @@ namespace httpvo::Implementation
               const u8_t * const stop = end - N;
               for (; p < stop; p += N)
               {
-                   const std::size_t offset = first_non_whitespace(p);
+                   const std::size_t offset = first_non_whitespace<N>(p);
                    if (offset < N) return p + offset;
                }
-               return stop + first_non_whitespace(stop);
+               return stop + first_non_whitespace<N>(stop);
          }
     }
 
     template<>
-    inline const u8_t * trim_whitespace<0>(const u8_t *p, const u8_t * const end)
+    inline const u8_t * trim_whitespace<1>(const u8_t *p, const u8_t * const end)
     {
-        if (is_whitespace(p[0]))
+        if (is_whitespace<u8_t, true>(p[0]))
         {
             if constexpr (setup::no_multispace) return end;
-            else while (++p < end and is_whitespace(p[0])) pass();
+            else while (++p < end and is_whitespace<u8_t, true>(p[0])) pass();
         }
         return p;
     }
@@ -334,7 +316,7 @@ namespace httpvo::Implementation
     {
         const u8_t * const end = b + run_size;
         if (p = trim_whitespace<N>(p, end); p == end) [[unlikely]]
-            return  __status_bad_or_expect(b, p);
+            return __status_bad_or_expect(b, p);
 
         p = _find_request_url_end<N>(b, p, run_size);
         if  (p == end) [[unlikely]]
