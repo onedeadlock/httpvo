@@ -1,6 +1,5 @@
 #ifndef HTTPVO_SIMD_IMPLEMENTAION_HPP
 #define HTTPVO_SIMD_IMPLEMENTAION_HPP
-#include "../common/common.hpp"
 #include "../include/definition.hpp"
 
 namespace httpvo::simd
@@ -147,10 +146,12 @@ namespace httpvo::simd
 #              if HTTPVO_HAVE__ARM_NEON__
                     uint8x8_t x = vsub_u8(v, vdup_n_u8(A));
                     return vcgt_u8(x, vdup_n_u8(B - A));
+#              else
+                    static constexpr v64_t a = splat(0x7f + A);
+                    static constexpr v64_t b = splat(0x7f - B);
+                    const v64_t x = v & constant::c7f;
+                    return ((a - x) | (b + x)) & bits::andnot(constant::c80, v);
 #              endif
-               static constexpr v64_t a = splat(0x7f + A);
-               static constexpr v64_t b = splat(0x7f - B);
-               return ((a - (v & constant::c7f)) | (b + (v & constant::c7f))) & bits::andnot(constant::c80, v);
           }
 
           inline v64_t _is_not_letter(void) const
@@ -172,7 +173,7 @@ namespace httpvo::simd
                     const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x41)); // flatten range so that x < 26 for any alphabet char
                     return vcgt_u8(x, vdup_n_u8(0x19));
 #              else
-                    return _is_not_letter() | v & constant::c80;
+                    return (_is_not_letter() | v) & constant::c80;
 #              endif
           }
 
@@ -190,7 +191,7 @@ namespace httpvo::simd
 #              if HTTPVO_HAVE__ARM_NEON
                    return vcgt_u8(veor_u8(v, vcreate_u8(constant::c30)), vdup_n_u8(0x9));
 #              else
-                   return _is_not_number() | v & constant::c80;
+                   return (_is_not_number() | v) & constant::c80;
 #              endif
           }
 
@@ -206,7 +207,7 @@ namespace httpvo::simd
 #              if HTTPVO_HAVE__ARM_NEON
                    return vmvn_u8(vceq_u8(v, vdup_n_u8(0x2d)));
 #              else
-                   return _is_not_hyphen() | v & constant::c80;
+                   return (_is_not_hyphen() | v) & constant::c80;
 #              endif
           }
 
@@ -220,12 +221,12 @@ namespace httpvo::simd
 #                   if HTTPVO_HAVE__ARM_NEON
                          return vand_u8(vand_u8(is_not_letter(), is_not_number()), is_not_hyphen());
 #                   else
-                         return (_is_not_letter() & _is_not_number() & _is_not_hyphen()) | v & constant::c80;
+                         return ((_is_not_letter() & _is_not_number()) & (_is_not_hyphen() | v)) & constant::c80;
 #                   endif
                }
           }
 
-          inline v64_t _not_printable_no_tab(const v64_t v)
+          inline v64_t _not_printable_no_tab(const v64_t v) const
           {
                // :: v < 0x80
                // @not_print: (159 - v) > 127 when v < 32 (control bytes) therefore its bit 7 is left set whereas v => 32 unsets it
@@ -235,11 +236,11 @@ namespace httpvo::simd
                return not_print | is_del;
           }
 
-          inline v64_t _not_printable_tab(const v64_t v)
+          inline v64_t _not_printable_tab(const v64_t v) const
           {
                // :: v < 0x80
                const v64_t is_htab = (v ^ constant::c09) - constant::c01;
-               return _is_not_printable_no_tab(v) ^ is_htab;
+               return _not_printable_no_tab(v) ^ is_htab;
           }
 
           template<bool INCLUDE_TAB=setup::priotize_horizontal_tab>
@@ -253,7 +254,7 @@ namespace httpvo::simd
 #              else
                     const v64_t v_no_overflow = v & constant::c7f;
                     if constexpr (INCLUDE_TAB)
-                         return _not_printable_tab(v_no_overflow) & bits::andnot(constant::c80, v);
+                         return _not_printable_tab(v_no_overflow)    & bits::andnot(constant::c80, v);
                     else return _not_printable_no_tab(v_no_overflow) & bits::andnot(constant::c80, v);
 #              endif
           }

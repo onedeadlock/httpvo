@@ -13,12 +13,14 @@ namespace httpvo
         }
         inline int set_value_end(const std::size_t end, const u8_t *const b)
         {
+            auto is_whitespace = [](const int c)
+            { return (c == 0x20) | (c == 0x09); };
             value_end = end;
-            for (; value_pos != value_end and common::is_whitespace(b[value_pos]); value_pos++)
+            for (; value_pos != value_end and is_whitespace(b[value_pos]); value_pos++)
                 pass();
-            for (; value_pos != value_end and common::is_whitespace(b[value_end]); value_end--)
+            for (; value_pos != value_end and is_whitespace(b[value_end]); value_end--)
                 pass();
-            return -(value_pos == value_end);
+            return value_pos == value_end;
         }
     };
 }

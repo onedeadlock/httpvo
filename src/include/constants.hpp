@@ -13,6 +13,7 @@ namespace httpvo::constant
     static constexpr u64_t c3a = 0x3a3a3a3a3a3a3a3aULL;
     static constexpr u64_t c7f = 0x7f7f7f7f7f7f7f7fULL;
     static constexpr u64_t c9f = 0x9f9f9f9f9f9f9f9fULL;
+    static constexpr u64_t ca0 = 0xa0a0a0a0a0a0a0a0ULL;
     static constexpr u64_t cdf = 0xdfdfdfdfdfdfdfdfULL;
     static constexpr u64_t cff = 0xffffffffffffffffULL;
     static constexpr u64_t c80 = 0x8080808080808080ULL;

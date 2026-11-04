@@ -1,5 +1,5 @@
 #include <benchmark/benchmark.h>
-#include "../scalar_impl.hpp"
+#include "../implementation.cpp"
 
 using namespace httpvo;
 alignas(8) static char str[] = "GET https://g232332o279627368472368472364872348792734627346927346928346923846923846932323232332ogle.com/index HTTP1.1\r\n";

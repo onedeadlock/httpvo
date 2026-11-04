@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cstdint>
-#include "../../scalar_impl.hpp"
+#include "../../implementation.cpp"
 
 int main(void)
 {

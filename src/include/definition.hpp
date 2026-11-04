@@ -181,11 +181,12 @@
 //////////////////////////////
 namespace httpvo
 {   
-    using u8_t  = std::uint8_t;
-    using i8_t  = std::int8_t;
-    using u16_t = std::uint16_t;
-    using u32_t = std::uint32_t;
-    using u64_t = std::uint64_t;
+    using u8_t   = std::uint8_t;
+    using i8_t   = std::int8_t;
+    using u16_t  = std::uint16_t;
+    using u32_t  = std::uint32_t;
+    using u64_t  = std::uint64_t;
+    using mask_t = std::uint64_t;
 
     auto pass   = []{};
 

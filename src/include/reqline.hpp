@@ -114,40 +114,22 @@ namespace httpvo
             return (vs = i ^ '\x30') < 10;
         }
 
-        inline int version_is_http_1_mask(u64_t v)
+        inline bool version_is_http_1(const u8_t * const b) const
         {
-            if constexpr (setup::little_endian)
-                return not ((v & 0x00ffffffffffffffULL) ^ 0x002e312f50545448ULL);
+            if constexpr (setup::little_endian && !setup::no_vectorize)
+                return simd::simdv<8>::testmask_u64(b, 0x00ffffffffffffffULL, 0x002e312f50545448ULL);
+            else
             {
-                // TODO: Handle Big Endianess
-                if constexpr (setup::debug)
-
-                return version_is_http_1_rd(reinterpret_cast<const u8_t *>(&v));
+                const bool is_not_http          = (b[0] ^ 0x48) | (b[1] ^ 0x54) | (b[2] ^ 0x54) | (b[3] ^ 0x50);
+                const bool is_not_slash_one_dot = (b[4] ^ 0x2f) | (b[5] ^ 0x31) | (b[6] ^ 0x2e);
+                return not (is_not_http | is_not_slash_one_dot);
             }
-            return not ((v & 0x00ffffffffffffffULL) ^ 0x002e312f50545448ULL);
         }
 
-        inline bool version_is_http_1_rd(const u8_t * const b)
+        inline int set_version(const u8_t * const b)
         {
-            return !((b[0] ^ '\x48') | (b[1] ^ '\x54') | (b[2] ^ '\x54') | (b[3] ^ '\x50')) and !((b[4] ^ '\x2f') | (b[5] ^ '\x31') | (b[6] ^ '\x2e'));
-        }
-
-        inline bool version_is_http_1(const u8_t * const b)
-        {
-            if constexpr (not setup::no_vectorize and setup::little_endian)
-                return simd::simdv<8>::testmask_u64(b, 0x00ffffffffffffffULL, 0x002e312f50545448ULL) and set_minor_version(b[7]);
-            
-            return version_is_http_1_rd(b) and set_minor_version(b[7]);
-        }
-
-        inline bool is_expected_version_size(void) const
-        {
-            return version_size() == required_version_size;
-        }
-
-        inline int set_version(const void * const b)
-        {
-            return not (is_expected_version_size() and version_is_http_1(reinterpret_cast<const u8_t * const>(b) + start_of_version()));
+            // :: assume len(b) >= 8
+            return version_is_http_1(b) & set_minor_version(b[7]);
         }
     };
 }
