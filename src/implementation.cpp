@@ -193,7 +193,7 @@ namespace httpvo::Implementation
     template<bool ALPHAONLY>
     make_flat inline std::size_t find_non_tchar(const u8_t * const b, const std::size_t len)
     {
-        if (len < 8) return _offset_of_non_tchar(b, 0, len);
+        if (setup::optimize_for_most_case or len < 8) return _offset_of_non_tchar(b, 0, len);
 
         const u8_t * const end = b + (len - 8);
         for (const u8_t *p = b; p < end; p += 8)
@@ -262,24 +262,32 @@ namespace httpvo::Implementation
     }
 
     template<simd::VWidth N>
+    inline std::size_t first_non_whitespace(const u8_t *p, const u8_t * const end)
+    {
+         constexpr mask_t All_whitespace = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
+         const mask_t mask = is_whitespace(simdv<N>{p});
+         if (mask != All_whitespace) [[likely]]
+              return simdv<N>::countzero_bitmask(mask);
+          return N;
+}
+
+    template<simd::VWidth N>
     inline const u8_t * trim_whitespace(const u8_t *p, const u8_t * const end)
     {
-        if (not is_whitespace(p[0]))
+        if (not is_whitespace(p[0])) [[likely]]
             return p;
-        if constexpr (not setup::no_multispace)
+        if constexpr (setup::no_multispace)
+            return end;
+        else
         {
-            constexpr mask_t all_whitespace = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
-            for (const u8_t * const stop = end - N; p < stop; p += N)
-            {
-                const mask_t mask = is_whitespace(simdv<N>{p});
-                if (mask != all_whitespace) [[likely]]
-                    return p + simdv<N>::countzero_bitmask(mask);
-            }
-            const mask_t mask = is_whitespace(simdv<N>{stop});
-            if (mask != all_whitespace) [[likely]]
-                return (end - N) + simdv<N>::countzero_bitmask(mask);
-        }
-        return end;
+              const u8_t * const stop = end - N;
+              for (; p < stop; p += N)
+              {
+                   const std::size_t offset = first_non_whitespace(p);
+                   if (offset < N) return p + offset;
+               }
+               return stop + first_non_whitespace(stop);
+         }
     }
 
     template<>
@@ -294,7 +302,7 @@ namespace httpvo::Implementation
     }
 
     template <simd::VWidth N>
-    inline const u8_t * find_request_url_end_(const u8_t * const b, const u8_t *p, const std::size_t len)
+    inline const u8_t * _find_request_url_end(const u8_t * const b, const u8_t *p, const std::size_t len)
     {
         const u8_t * const stop = b + (len - N);
         for (; p < stop; p += N)
@@ -306,7 +314,7 @@ namespace httpvo::Implementation
     }
 
     template <>
-    inline const u8_t * find_request_url_end_<1>(const u8_t * const b, const u8_t *p, const std::size_t len)
+    inline const u8_t * _find_request_url_end<1>(const u8_t * const b, const u8_t *p, const std::size_t len)
     {
        
         for ( const u8_t *const stop = b + len; p < stop and not is_out_of_range<0x21, 0x7e, 1>(p); p += 1)
@@ -320,32 +328,42 @@ namespace httpvo::Implementation
             return {status::bad_whitespace, static_cast<std::size_t>(p - b)};
         else return {status::expect_bytes,  static_cast<std::size_t>(p - b)};
     }
+   
     template <simd::VWidth N>
-    inline status::statat_t find_request_url_end(const u8_t * const b, const u8_t *p, const std::size_t run_size, header_view& out)
+    inline status::statat_t _find_request_url_end_main(const u8_t * const b, const u8_t *p, const std::size_t run_size, header_view& out)
     {
-        /* TODO: check run_size logic. run_size here is not actual buffer size but the buffer_size - method end offset */
-        if constexpr (setup::no_vectorize)
-            return find_request_url_end<1>(b, p, run_size);
-        if (run_size < N)
-        {
-            if constexpr (N > 8) return find_request_url_end<8>(b, p, run_size, out);
-            else return find_request_url_end<1>(b, p, run_size, out);
-        }
-        const u8_t *const end = b + run_size;
+        const u8_t * const end = b + run_size;
         if (p = trim_whitespace<N>(p, end); p == end) [[unlikely]]
             return  __status_bad_or_expect(b, p);
 
-        p = find_request_url_end_<N>(b, p, run_size);
+        p = _find_request_url_end<N>(b, p, run_size);
         if  (p == end) [[unlikely]]
             return status::expect_bytes;
         if (is_whitespace(p[0]))
         {
             p += 1;
-            if (p < end and (p = trim_whitespace<N>(p, end) == end)) [[unlikely]]
-                return  __status_bad_or_expect(b, p);
+            if (p < end and (p = trim_whitespace<N>(p, end)) == end) [[unlikely]]
+                return __status_bad_or_expect(b, p);
             return {0, static_cast<std::size_t>(p - b)};
         }
         return status::unexpected_char;
+    }
+   
+    template <simd::VWidth N>
+    inline status::statat_t find_request_url_end(const u8_t * const b, const u8_t *p, const std::size_t run_size, header_view& out)
+    {
+        /* TODO: check run_size logic. run_size here is not actual buffer size but the buffer_size - method end offset */
+        if constexpr (setup::no_vectorize)
+            return _find_request_url_end_main<1>(b, p, run_size);
+        else
+        {
+            if (run_size < N)
+            {
+                if constexpr (N > 8) return _find_request_url_end_main<8>(b, p, run_size, out);
+                else return _find_request_url_end_main<1>(b, p, run_size, out);
+            }
+            return _find_request_url_end_main<N>(b, p, run_size,out);
+        }
     }
 
     template<simd::VWidth N=8>
