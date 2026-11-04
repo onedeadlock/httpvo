@@ -218,12 +218,13 @@ namespace httpvo::Implementation
 
     inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t run_size, ReqLine& out)
     {
-        if (const std::size_t offset = find_non_tchar<1>(b, run_size))
-         {
+        if (const std::size_t offset = find_non_tchar<1>(b, run_size)) [[likely]]
+        {
             if (not is_whitespace<u8_t, true>(b[offset])) [[unlikely]]
                 return status::unexpected_char;
             return {out.advance(offset), offset};
-         }
+        }
+        out.meth = true;
         return status::expect_bytes;
     }
 
@@ -298,7 +299,6 @@ namespace httpvo::Implementation
     template <>
     inline const u8_t * _find_request_url_end<1>(const u8_t * const b, const u8_t *p, const std::size_t len)
     {
-       
         for ( const u8_t *const stop = b + len; p < stop and not is_out_of_range<0x21, 0x7e, 1>(p); p += 1)
             pass();
         return p;
@@ -321,15 +321,13 @@ namespace httpvo::Implementation
         p = _find_request_url_end<N>(b, p, run_size);
         if  (p == end) [[unlikely]]
             return {status::expect_bytes, run_size};
-        if (is_whitespace<u8_t, true>(p[0]))
-        {
-            p += 1;
-            if (p < end and (p = trim_whitespace<N>(p, end)) == end) [[unlikely]]
-                return __status_bad_or_expect(b, p);
-            const std::size_t offset = static_cast<std::size_t>(p - b);
-            return {out.advance(offset), offset};
-        }
-        return {status::unexpected_char, static_cast<std::size_t>(p - b)};
+        if (not is_whitespace<u8_t, true>(p[0])) [[unlikely]]
+            return {status::unexpected_char, static_cast<std::size_t>(p - b)};
+        p += 1;
+        if (p < end and (p = trim_whitespace<N>(p, end)) == end) [[unlikely]]
+            return __status_bad_or_expect(b, p);
+        const std::size_t offset = static_cast<std::size_t>(p - b);
+        return {out.advance(offset), offset};
     }
    
     template <simd::VWidth N>
@@ -349,11 +347,9 @@ namespace httpvo::Implementation
         }
     }
 
-    template<simd::VWidth N=8>
-    [[nodiscard]] inline status::statat_t http::parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    template<simd::VWidth N>
+    [[nodiscard]] inline status::statat_t http::parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size) noexcept
     {
-        if (run_size < 8)
-            return status::expect_bytes;
         const status::statat_t meth_end = find_request_method_end(b, run_size, out);
         if (meth_end != 0) [[unlikely]]
             return meth_end;
@@ -361,20 +357,16 @@ namespace httpvo::Implementation
         if (val_end != 0) [[unlikely]]
             return val_end;
         const std::size_t o = val_end.offset;
-        if ((run_size - o) < 8)
+        if ((run_size - o) < 10)
             return {status::expect_bytes, run_size};
-        if (out.set_version(b + o)) [[unlikely]]
+        if (out.set_version(b + o) or is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
             return {status::error, o};
-        const std::size_t w = o + 8;
-        if (const int s = is_not_end_of_line(b + w, run_size - w)) [[unlikely]]
-            return {s, w};
-        return {0, w + 2};
+        return {0, o + 10};
     }
 
-    template<simd::VWidth N=8, bool ISTRAIL=0>
-    [[nodiscard]] inline status parse_response(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size, const mask_t mask, u64_t tsp) noexcept
+    template<simd::VWidth N>
+    [[nodiscard]] inline status::statat_t http::parse_response(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size) noexcept
     {
-        // TODO
         return 0;
     }
 

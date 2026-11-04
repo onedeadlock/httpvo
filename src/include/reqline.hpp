@@ -5,103 +5,22 @@
 
 namespace httpvo
 {
-    /*
-    * The header line tokens are inserted in req[] such that, the position of the version (HTTP/1.x) 
-    * in the request/response line is at the same index 0, of the array. Therefore, for request line,
-    * we insert decrementally from 2 - 0 and do the reverse for response line (since version is already the first token in it).
-    * Only the index of the last character in a token is stored during read. The start index and length of the token is computed later.
-    *
-    *        [N]   request | response
-    *        ______________|________
-    *        [0]  version  | version
-    *        [1]  uri      | status
-    *        [2]  method   | message (optional)
-    *        [3]  0        |    0
-    *
-    * INPUT:     GET . HTTP/1.1
-    * STORED AS: HTTP/1.1 . GET
-    *
-    * The size of each tokens is gotten by computing:
-    *    [TOKEN]        [LEN]
-    *  METHOD/MGS    2 - (N - 1)   
-    *  URI/STATUS    1 - (N - 1) - 1(whitespace)
-    *  VERSION       0 - (N - 1) - 1(whitespace)
-    * 
-    * Where N - 1 is the start index of the tokens (GET(0) before URI(1) before VERSION(2), etc) as specified in rfc9110
-    * When N - 1 < 0 (the case for first tokens, GET in request and VERSION in response line),
-    * we wrap to index 3 of the array, which is always set to zero, so that the subtraction leaves the value unchanged
-    */
     struct ReqLine
     {
-        static constexpr u8_t m_3_2_1 = 0b111001U; // mask indices for request
-        static constexpr u8_t m_1_0_3 = 0b010011U; // mask indices for response
-        static constexpr u8_t required_version_size = 8;
-
-        std::size_t req[4]{0};
-        i8_t sm, st, end, i, sp, vs;
-
-        u8_t type(void)
-        {
-            return sm;
-        }
+        std::size_t req[3]{0};
+        i8_t i=0;
+        i8_t vs=0;
+        i8_t meth, url;
 
         inline void reset(void)
         {
-            req[0] = req[1] = req[2] = 0;
-            sm = st = end = i = sp = vs = 0;
-        }
-
-        inline void request(void)
-        {
-            req[0] = req[1] = req[2] = 0;
-            sm = m_3_2_1, st = 2, end = i = -1, sp = 1, vs = 0;
-        }
-
-        inline void response(void)
-        {
-            req[0] = req[1] = req[2] = 0;
-            sm = m_1_0_3, st = 0, end = 3, i = 1, sp = 0, vs = 0;
-        }
-
-        inline std::size_t start_of_version(void) const
-        {
-            return req[sm & 0b11] + sp; // +1 for sp (request:version)
-        }
-
-        inline std::size_t version_size(void) const
-        {
-            return req[0] - start_of_version();
-        }
-
-        inline std::size_t start_of_status_uri(void) const
-        {
-            return req[(sm >> 2) & 0b11] + 1; // +1 for sp
-        }
-
-        inline std::size_t status_uri_size(void) const
-        {
-            return req[1] - start_of_status_uri();
-        }
-
-        inline std::size_t start_of_method_msg(void) const
-        {
-            return req[(sm >> 4) & 0b11] + !sp; // +1 for sp (msg)
-        }
-
-        inline std::size_t method_or_msg_size(void) const
-        {
-            return req[2] - start_of_method_msg();
-        }
-
-        inline int complete(void) const
-        {
-            return st == end;
+            req[0] = req[1] = i = vs = 0;
         }
 
         inline int advance(const std::size_t len)
         {
-            req[st] += len;
-            return (st += i) != end;
+            req[i] += len;
+            return ++i == 2;
         }
 
         inline int minor_version(void)
@@ -109,9 +28,9 @@ namespace httpvo
             return vs;
         }
 
-        inline int set_minor_version(u8_t i)
+        inline int set_minor_version(const u8_t i)
         {
-            return (vs = i ^ '\x30') < 10;
+            return (vs = i ^ 0x30) < 10;
         }
 
         inline bool version_is_http_1(const u8_t * const b) const
