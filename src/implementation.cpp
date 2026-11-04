@@ -16,11 +16,11 @@ namespace httpvo::Implementation
         Delete         = '\x7f',
     };
 
-    template<typename T, bool SPONLY>
-    inline T is_whitespace(const T c)
+    template<typename T, bool SPCONLY>
+    inline T is_whitespace(const T& c)
     {
         static_assert(std::is_integral<T>() or simd::is_simd_v<T>());
-        if constexpr (SPONLY) return c == Character::Space;
+        if constexpr (SPCONLY) return c == Character::Space;
         else return (c == Character::Space) | (c == Character::HorizontalTab);
     }
 
@@ -184,7 +184,7 @@ namespace httpvo::Implementation
             if (const std::size_t offset = offset_of_non_tchar<ALPHAONLY>(p); offset < 8)
                 return offset + static_cast<std::size_t>(p - b);
         }
-        return offset_of_non_tchar(end) + (len - 8);
+        return offset_of_non_tchar<ALPHAONLY>(end) + (len - 8);
     }
 
     inline std::size_t _offset_of_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
@@ -220,7 +220,7 @@ namespace httpvo::Implementation
     {
         if (const std::size_t offset = find_non_tchar<1>(b, run_size))
          {
-            if (not is_whitespace<u8_t, 1>(b[offset])) [[unlikely]]
+            if (not is_whitespace<u8_t, true>(b[offset])) [[unlikely]]
                 return status::unexpected_char;
             return {out.advance(offset), offset};
          }
@@ -247,7 +247,7 @@ namespace httpvo::Implementation
     inline std::size_t first_non_whitespace(const u8_t * const p)
     {
          constexpr mask_t ALL_WHITESPACE = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
-         const mask_t mask = is_whitespace<simdv<N>, 1>(simdv<N>(p));
+         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(p));
          if (mask != ALL_WHITESPACE) [[likely]]
               return simdv<N>::countzero_bitmask(mask);
           return N;
