@@ -240,7 +240,7 @@ namespace httpvo::Implementation
     inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const p)
     {
         static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
-        return static_cast<const i8_t>(*p + 0x5f) < -0x22;
+        return static_cast<const i8_t>(*p + 0x5f) > -0x23;
     }
 
     template<simd::VWidth N>
