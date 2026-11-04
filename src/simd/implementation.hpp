@@ -169,7 +169,7 @@ namespace httpvo::simd
           {
 #              if HTTPVO_HAVE__ARM_NEON
                     const v64_t v_norm_letter_case = vand_u8(v, vcreate_u8(constant::cdf));
-                    const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x41)); // flatten range so that x.byte < 26 for any alphabet char
+                    const v64_t x = vsub_u8(v_norm_letter_case, vdup_n_u8(0x41)); // flatten range so that x < 26 for any alphabet char
                     return vcgt_u8(x, vdup_n_u8(0x19));
 #              else
                     return _is_not_letter() | v & constant::c80;
@@ -228,7 +228,7 @@ namespace httpvo::simd
           inline v64_t _not_printable_no_tab(const v64_t v)
           {
                // :: v < 0x80
-               // @not_print: 159 - v where x < 32 (control bytes) leaves bit 7 set whereas x => 32 unsets it
+               // @not_print: (159 - v) > 127 when v < 32 (control bytes) therefore its bit 7 is left set whereas v => 32 unsets it
                // @is_del:    v + 1, shifts 0x7f to 0x80 setting bit 7
                const v64_t not_print = constant::c9f - v;
                const v64_t is_del    = v + constant::c01;
