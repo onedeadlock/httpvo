@@ -218,6 +218,9 @@ namespace httpvo
         static constexpr bool end_of_line_is_line_feed = true; // TODO
         static constexpr bool optimize_for_most_case  = HTTPVO_OPTIMIZE_FOR_MOST_CASE;
         static constexpr bool priotize_horizontal_tab = false; // TODO
+
+         constexpr u8_t req_line_min_size = 14;
+         constexpr u8_t hd_line_min_size  = 5;
      }
 }
 #endif // HTTPVO_DEFINITION_HPP

@@ -54,6 +54,8 @@ namespace httpvo::simd
 
           static inline u64_t _load_u64(const void * const b)
           {
+               if constexpr (setup::support_unaligned)
+                    return reinterpret_cast<const u32_t *>(b)[0];
                u64_t v;
                httpvo_memcopy(&v, b, 8);
                return v;

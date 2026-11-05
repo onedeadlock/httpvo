@@ -5,7 +5,7 @@ int main(void)
 {
     alignas(8) char request_line[] = "GET . HTTP/1.1\r\n";
     std::size_t len = std::strlen(request_line);
-    httpvo::Implementation::http parser;
+    httpvo::Implementation::Parse parser;
     httpvo::ReqLine req{0};
 
     auto status = parser.request_line<16>(reinterpret_cast<uint8_t *>(request_line), len, req);

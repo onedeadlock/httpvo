@@ -68,14 +68,16 @@ namespace httpvo::Implementation
         return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
      }
 
-    inline int http::end_of_parse(const u32_t v) noexcept
+    template<class T>
+    inline int Parse<T>::end_of_parse(const u32_t v) noexcept
     {
         constexpr u32_t CRLF = 0x0a0d;
         end_of_parse_marker = v == (CRLF | (CRLF << 16));
         return (v & 0xffffu) == CRLF;
     }
 
-    inline int http::end_of_parse_single_load(const u8_t * const b) noexcept
+    template<class T>
+    inline int Parse<T>::end_of_parse_single_load(const u8_t * const b) noexcept
     {
         if constexpr (setup::little_endian and not setup::no_vectorize)
             return end_of_parse(simdv<8>::_load_u32(b));
@@ -88,8 +90,9 @@ namespace httpvo::Implementation
 #           undef USH
          }
     }
-     
-    inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
+    
+    template<class T>
+    inline int Parse<T>::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
         // :: assume rem >= 2
         if constexpr (setup::end_of_line_is_line_feed)
@@ -97,39 +100,6 @@ namespace httpvo::Implementation
         if (rem > 3) [[likely]]
             return not end_of_parse_single_load(b);
          return (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
-    }
-
-    template<simd::VWidth N, bool ISTRAIL=0>
-    [[nodiscard]] inline status http::parse_header(u8_t * const b, u8_t *p, header_view& out, const std::size_t in_size, const std::size_t run_size) noexcept
-    {
-        static_assert(N == 16 or N == 32);
-        const u8_t * const stop = b + (not ISTRAIL ? bits::align(run_size, N) : run_size);
-        bool parsing_value = false;
-
-        for (; p < stop; p += N)
-        {
-            simdv<N> v{p};
-            if (not parsing_value)
-            {
-                mask_t non_tchar = is_non_tchar<N>(v);
-                if (not non_tchar)
-                    continue;
-                const u8_t * const q = p + simdv<N>::countzero_bitmask(non_tchar);
-                if (q[0] != Character::Colon) [[unlikely]]
-                    return status::unexpected_char;
-                out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
-                parsing_value = true;
-            }
-            if (mask_t control_char = is_control_char<N>(v))
-            {
-                const u8_t * const q = p + simdv<N>::countzero_bitmask(control_char);
-                const std::size_t offset = __size(q, b);
-                if (is_not_end_of_line(q, run_size - offset)) [[unlikely]]
-                    return status::unexpected_char; // TODO: end_of_line function changed
-                return out.set_value_end(offset, b);
-            }
-        }
-        return status::expect_bytes;
     }
     
     //  3 -> name tchar; 2 -> value tchar
@@ -283,7 +253,7 @@ namespace httpvo::Implementation
             if (not is_whitespace<u8_t, true>(p[offset])) [[unlikely]]
                 return status::unexpected_char;
             out.advance(offset);
-            return {(len - offset) < 1, offset};
+            return {(len - offset) < setup::req_line_min_size - 2, offset};
         }
         return status::expect_bytes;
     }
@@ -342,8 +312,8 @@ namespace httpvo::Implementation
         {
             if (len < N)
             {
-                if constexpr (N > 8) return _find_request_url_end_main<8>(b, p, len, out);
-                else return _find_request_url_end_main<1>(b, p, len, out);
+                if (len < 8) [[unlikely]] return _find_request_url_end_main<1>(b, p, len, out);
+                return _find_request_url_end_main<8>(b, p, len, out);
             }
             return _find_request_url_end_main<N>(b, p, len, out);
         }
@@ -354,18 +324,18 @@ namespace httpvo::Implementation
          return (out.version = minor ^ 0x30) < 10;
     }
 
-    template<int TYPE>
+    template<class T>
     inline bool is_protocol(const u64_t proto)
     {
         constexpr u64_t http_slash_one_dot = 0x2e312f5054544800ULL;
         constexpr u64_t rtsp_slash_one_dot = 0x2e312f5053545200ULL;
         constexpr u64_t rtsp_slash_two_dot = 0x2e322f5053545200ULL;
-        if constexpr (TYPE == setup::rtsp)
+        if constexpr (std::is_same_v<T, Rtsp_Protocol>)
             return (proto == rtsp_slash_two_dot) | (proto == rtsp_slash_one_dot);
         else return proto == http_slash_one_dot;
     }
 
-    template<int TYPE>
+    template<class T>
     inline bool set_version(const u8_t * const b, ReqLine& out)
     {
         // :: assume len(b) >= 8
@@ -382,12 +352,25 @@ namespace httpvo::Implementation
             httpvo_discard_reginfo(LD);
 #           undef USH
         }
-        return is_protocol<TYPE>(LD << 8) & is_expected_minor_version(LD >> 56, out);
+        return is_protocol<T>(LD << 8) & is_expected_minor_version(LD >> 56, out);
     }
 
     template<simd::VWidth N>
-    [[nodiscard]] inline status::statat_t http::request_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status::statat_t end_of_method_url(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
+        const status::statat_t end_of_method = find_request_method_end(b, run_size, out);
+        if (end_of_method != 0) [[unlikely]]
+            return end_of_method;
+        const std::size_t n = end_of_method.offset + 1;
+        return find_request_url_end<N>(b, b + n, run_size - n, out);
+    }
+
+    template<class T>
+    template<simd::VWidth N>
+    [[nodiscard]] inline status::statat_t Parse<T>::request_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    {
+        if (run_size < setup::req_line_min_size) [[unlikely]]
+            return status::expect_bytes;
         const status::statat_t end_of_method = find_request_method_end(b, run_size, out);
         if (end_of_method != 0) [[unlikely]]
             return end_of_method;
@@ -396,35 +379,84 @@ namespace httpvo::Implementation
         if (end_of_url != 0) [[unlikely]]
             return end_of_url;
         const std::size_t o = end_of_url.offset;
-        if ((run_size - o) < 10)
+        if ((run_size - o) < setup::req_line_min_size - 4)
             return {status::expect_bytes, run_size};
-        if ((set_version<setup::http>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
+        if ((set_version<T>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
             return {status::error, o};
         return {0, o + 10};
     }
 
+    template<class T>
     template<simd::VWidth N>
-    [[nodiscard]] inline status::statat_t http::response_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status::statat_t Parse<T>::response_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         return 0;
     }
 
-    template<>
-    [[nodiscard]] inline status http::parse_header<0>(u8_t *b, u8_t *b_run [[maybe_unused]], header_view& out, const std::size_t in_size [[maybe_unused]], const std::size_t run_size) noexcept
-    {  
-        const std::size_t n_offset = find_non_tchar<0>(b, run_size);
-        if (n_offset == run_size) [[unlikely]]
+    template<class T> 
+    template <class U, simd::VWidth N>
+    struct Parse<T>::ParseHeaderTag
+    {
+        [[nodiscard]] static inline status parse_header(u8_t *const b, header_view &out, const std::size_t run_size, Parse<T>& self) noexcept
+        {
+            static_assert(N == 16 or N == 32);
+            const u8_t *const stop = b + bits::align(run_size, N);
+            bool parsing_value = false;
+
+            for (const u8_t *p = b; p < stop; p += N)
+            {
+                simdv<N> v{p};
+                if (not parsing_value)
+                {
+                    mask_t non_tchar = is_non_tchar<N>(v);
+                    if (not non_tchar)
+                        continue;
+                    const u8_t *const q = p + simdv<N>::countzero_bitmask(non_tchar);
+                    if (q[0] != Character::Colon) [[unlikely]]
+                        return status::unexpected_char;
+                    out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
+                    parsing_value = true;
+                }
+                if (mask_t control_char = is_control_char<N>(v))
+                {
+                    const u8_t *const q = p + simdv<N>::countzero_bitmask(control_char);
+                    const std::size_t offset = __size(q, b);
+                    if (self.is_not_end_of_line(q, run_size - offset)) [[unlikely]]
+                        return status::unexpected_char; // TODO: end_of_line function changed
+                    return out.set_value_end(offset, b);
+                }
+            }
             return status::expect_bytes;
-        if (b[n_offset] != Character::Colon) [[unlikely]]
-            return status::unexpected_char;
-        out.set_name_end(n_offset, nullptr);
-        
-        const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
-        if (v_offset == run_size) [[unlikely]]
-            return status::expect_bytes;
-        if (is_not_end_of_line(b + v_offset, run_size - v_offset)) [[unlikely]]
-            return status::unexpected_char;
-        return out.set_value_end(v_offset, reinterpret_cast<const u8_t *>(b));
+        }
+    };
+
+    template<class T>
+    template <class U, simd::VWidth N>
+    struct Parse<T>::ParseHeaderTag<U, 0>
+    {
+        [[nodiscard]] inline status parse_header(u8_t *b, header_view &out, const std::size_t run_size, Parse<T>& self) noexcept
+        {
+            const std::size_t n_offset = find_non_tchar<0>(b, run_size);
+            if (n_offset == run_size) [[unlikely]]
+                return status::expect_bytes;
+            if (b[n_offset] != Character::Colon) [[unlikely]]
+                return status::unexpected_char;
+            out.set_name_end(n_offset, nullptr);
+
+            const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
+            if (v_offset == run_size) [[unlikely]]
+                return status::expect_bytes;
+            if (self.is_not_end_of_line(b + v_offset, run_size - v_offset)) [[unlikely]]
+                return status::unexpected_char;
+            return out.set_value_end(v_offset, reinterpret_cast<const u8_t *>(b));
+        }
+    };
+
+    template <class T>
+    template <simd::VWidth N>
+    [[nodiscard]] inline status Parse<T>::parse_header(u8_t *b, header_view &out, const std::size_t run_size) noexcept
+    {
+        return ParseHeaderTag<T, N>::parse_header(b, out, run_size, *this);
     }
 } // NAMESPACE::HTTVO
 #endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP
