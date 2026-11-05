@@ -164,8 +164,10 @@
 
 #if HTTPVO_GNUC_COMPAT__
 #    define httpvo_memcopy __builtin_memcpy
+#    define httpvo_discard_reginfo(r) __asm__("" : "+r"(r))
 #else
-#    define httpvo_memcopy memcpy 
+#    define httpvo_memcopy memcpy
+#    define httpvo_discard_reginfo(r) ((void)0)
 #endif
 
 #if !HTTPVO_GNUC_COMPAT__
@@ -198,12 +200,16 @@ namespace httpvo
         static constexpr u8_t neon    = HTTPVO_HAVE__ARM_NEON__;
         static constexpr u8_t int_64  = 1;
 
-        static constexpr bool arm64  = 0;
-        static constexpr bool arm32  = 0;
-        static constexpr bool x86_64 = 0;
+        static constexpr u8_t arm64  = 0;
+        static constexpr u8_t arm32  = 0;
+        static constexpr u8_t x86_64 = 0;
 
+        static constexpr u8_t rtsp = 4;
+        static constexpr u8_t http = 8;
+        
         static constexpr bool support_unaligned = HTTPVO_HAVE_UNALIGNED;
         static constexpr bool little_endian     = HTTPVO_LITTLE_ENDIAN;
+   
 
         static constexpr bool debug             = HTTPVO_DEBUG;
         static constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
