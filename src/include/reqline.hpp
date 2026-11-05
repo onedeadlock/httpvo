@@ -39,9 +39,14 @@ namespace httpvo
                 return simd::simdv<8>::testmask_u64(b, 0x00ffffffffffffffULL, 0x002e312f50545448ULL);
             else
             {
-                const u32_t is_not_http          = (b[0] ^ 0x48) | (b[1] ^ 0x54) | (b[2] ^ 0x54) | (b[3] ^ 0x50);
-                const u32_t is_not_slash_one_dot = (b[4] ^ 0x2f) | (b[5] ^ 0x31) | (b[6] ^ 0x2e);
-                return 0 == (is_not_http | is_not_slash_one_dot);
+#               define USH(c, n) (static_cast<const u32_t>(c) << (n))
+                // GCC and clang fold these shifts to two loads (and bswap on big endian) so that the test is always correct.
+                const u32_t LDLO = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH((b[3], 24);
+                const u32_t LDHI = USH(b[3], 0) | USH(b[4], 8) | USH(b[5], 16) | USH((b[6], 24); // added byte 4 of @LDLO to make it 4 bytes
+                const u32_t is_not_http      = LDLO ^ 0x50545448U;
+                const u32_t is_not_slash1dot = LDHI ^ 0x2e312f50U;
+                return (is_not_http | is_not_slash1dot) == 0;
+#               undef USH
             }
         }
 
