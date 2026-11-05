@@ -1,14 +1,14 @@
 #ifndef HTTPVO_REQLINE_HPP
 #define HTTPVO_REQLINE_HPP
 #include "definition.hpp"
-#include "../simd/implementation.hpp"
 
 namespace httpvo
 {
     struct ReqLine
     {
         std::size_t req[3]{0};
-        i8_t i=0, version=0;
+        i8_t i=0, version=0;
+
 
         inline void reset(void)
         {
@@ -25,6 +25,7 @@ namespace httpvo
         {
             return version;
         }
+    };
 }
 
 #endif // HTTPVO_REQLINE_HPP

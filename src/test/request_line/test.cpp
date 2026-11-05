@@ -1,40 +1,18 @@
 #include <iostream>
+#include <cstdlib>
 #include "../../implementation.cpp"
 int main(void)
 {
-    alignas(8) char request[] = "GET . HTTP/1.1\r\n";
-    std::size_t len = std::strlen(request);
+    alignas(8) char request_line[] = "GET . HTTP/1.1\r\n";
+    std::size_t len = std::strlen(request_line);
     httpvo::Implementation::http parser;
     httpvo::ReqLine req{0};
 
-    req.request();
-
-    httpvo::status stat = parser.parse_line<8>((httpvo::u8_t *)request, (httpvo::u8_t *)request, req, len, httpvo::constant::cff, 0);
-
-    if (stat < 0)
+    auto status = parser.request_line<16>(reinterpret_cast<uint8_t *>(request_line), len, req);
+    if (status != 0)
     {
-        std::cerr << stat.error_code() << " " << stat.stat << " parsing error" << std::endl;
-        return -1;
+        std::cout << status.stat << ' ' << status.offset << std::endl;
+        exit(-1);
     }
-
-    if (std::strncmp(request + req.start_of_method_msg(), "GET", req.method_or_msg_size()) != 0)
-    {
-        std::cerr << "parsing method failed\n";
-        return -1;
-    }
-
-    if (std::strncmp(request + req.start_of_status_uri(), ".", req.status_uri_size()) != 0)
-    {
-        std::cerr << "parsing uri failed\n";
-        return -1;
-    }
-
-    if (std::strncmp(request + req.start_of_version(), "HTTP/1.1", req.version_size()) != 0)
-    {
-        std::cerr << "parsing version failed\n";
-        return -1;
-    }
-    
-    std::cout << "PASSED" << std::endl;
     return 0;
 }

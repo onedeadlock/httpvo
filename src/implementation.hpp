@@ -23,16 +23,18 @@ namespace httpvo::Implementation
     class http
     {
     public:
-        http(void) : at_start_line{0}, end_of_parse{0} {}
+        http(void) : at_start_line{0}, end_of_parse_marker{0} {}
         template <simd::VWidth N>
-        status::statat_t parse_request(u8_t * const, u8_t *, ReqLine&, const std::size_t) noexcept;
+        status::statat_t request_line(u8_t *,  const std::size_t, ReqLine&) noexcept;
         template<simd::VWidth N>
-        status::statat_t parse_response(u8_t * const, u8_t *, ReqLine&, const std::size_t) noexcept;
+        status::statat_t response_line(u8_t *, const std::size_t, ReqLine&) noexcept;
         template <simd::VWidth N, bool ISTRAIL>
         status parse_header(u8_t *, u8_t *, header_view&, const std::size_t, const std::size_t) noexcept;
         private:
         bool at_start_line;
-        bool end_of_parse;
+        bool end_of_parse_marker;
+        int end_of_parse(const u32_t v) noexcept;
+        int end_of_parse_single_load(const u8_t * const b) noexcept;
         int is_not_end_of_line(const u8_t * const, const std::size_t) noexcept;
     };
 }
