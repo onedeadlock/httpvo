@@ -36,16 +36,17 @@ namespace httpvo
         inline bool version_is_http_1(const u8_t * const b) const
         {
             if constexpr (setup::little_endian && !setup::no_vectorize)
-                return simd::simdv<8>::testmask_u64(b, 0x00ffffffffffffffULL, 0x002e312f50545448ULL);
+                return (simd::simdv<8>::_load_u64(b) << 8) == 0x2e312f5054544800ULL;
             else
             {
-#               define USH(c, n) (static_cast<const u32_t>(c) << (n))
-                // GCC and clang fold these shifts to two loads (and bswap on big endian).
-                const u32_t LDLO = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH(b[3], 24);
-                const u32_t LDHI = USH(b[3], 0) | USH(b[4], 8) | USH(b[5], 16) | USH(b[6], 24); // added byte 4 of @LDLO to make it 4 bytes
-                const u32_t is_not_http      = LDLO ^ 0x50545448U;
-                const u32_t is_not_slash1dot = LDHI ^ 0x2e312f50U;
-                return (is_not_http | is_not_slash1dot) == 0;
+#               define USH(c, n) (static_cast<u32_t>(c) << (n))
+                // GCC and clang fold these shifts to a single load (and bswap on big endian). It is not the case for MSVC, but the cost of byte compares is the same.
+                // @discard_reginfo: clang sees that byte 7 is unused, discards it, and so emit 3 loads (first 4 bytes, next two bytes and the last byte) instead of 1 for the 8 bytes.
+                u64_t LD = 0;
+                LD |= static_cast<u64_t>(USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24));
+                LD |= static_cast<u64_t>(USH(b[4], 32) | USH(b[5], 40) | USH(b[6], 48) | USH(b[7], 56));
+                httpvo_discard_reginfo(LD);
+                return (LD << 8) == 0x2e312f5054544800ULL;
 #               undef USH
             }
         }
