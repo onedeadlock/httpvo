@@ -39,9 +39,9 @@ namespace httpvo
                 return simd::simdv<8>::testmask_u64(b, 0x00ffffffffffffffULL, 0x002e312f50545448ULL);
             else
             {
-                const bool is_not_http          = (b[0] ^ 0x48) | (b[1] ^ 0x54) | (b[2] ^ 0x54) | (b[3] ^ 0x50);
-                const bool is_not_slash_one_dot = (b[4] ^ 0x2f) | (b[5] ^ 0x31) | (b[6] ^ 0x2e);
-                return not (is_not_http | is_not_slash_one_dot);
+                const u32_t is_not_http          = (b[0] ^ 0x48) | (b[1] ^ 0x54) | (b[2] ^ 0x54) | (b[3] ^ 0x50);
+                const u32_t is_not_slash_one_dot = (b[4] ^ 0x2f) | (b[5] ^ 0x31) | (b[6] ^ 0x2e);
+                return 0 == (is_not_http | is_not_slash_one_dot);
             }
         }
 
