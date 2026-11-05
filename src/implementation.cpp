@@ -347,6 +347,49 @@ namespace httpvo::Implementation
         }
     }
 
+    template<int TYPE>
+    inline int is_protocol(const u64_t proto)
+    {
+        constexpr u64_t http_slash_one_dot = 0x2e312f5054544800ULL;
+        constexpr u64_t rtsp_slash_one_dot = 0x2e312f5053545200ULL;
+        constexpr u64_t rtsp_slash_two_dot = 0x2e322f5053545200ULL;
+        if constexpr (TYPE == setup::rtsp)
+            return (proto == rtsp_slash_two_dot) | (protocol == rtsp_slash_one_dot);
+        else return proto == http_slash_one_dot;
+    }
+
+    template<int TYPE>
+    inline int is_expected_protocol(const u8_t * const b)
+    {
+        
+        if constexpr (setup::little_endian and not setup::no_vectorize)
+            return is_protocol<TYPE>(simd::simdv<8>::_load_u64(b) << 8);
+        else
+        {
+#           define USH(c, n) (static_cast<u32_t>(c) << (n))
+            // GCC and clang fold these shifts to a single load (and bswap on big endian). It is not the case for MSVC, but the cost of byte compares is the same.
+            // @discard_reginfo: clang sees that byte 7 is unused, discards it, and so emit 3 loads (first 4 bytes, next two bytes and the last byte) instead of 1 for the 8 bytes.
+            u64_t LD = 0;
+            LD |= static_cast<u64_t>(USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24));
+            LD |= static_cast<u64_t>(USH(b[4], 32) | USH(b[5], 40) | USH(b[6], 48) | USH(b[7], 56));
+            httpvo_discard_reginfo(LD);
+            return is_protocol<TYPE>(LD << 8);
+#           undef USH
+        }
+    }
+    
+    inline int is_expected_minor_version(const int minor, ReqLine& out)
+    {
+         return (out.set_version = minor ^ 0x30) < 10;
+    }
+
+    template<int TYPE>
+    inline int set_version(const u8_t * const b, ReqLine& out)
+    {
+        // :: assume len(b) >= 8
+        return is_expected_protocol<TYPE>(b) & is_expected_minor_version(b[7], out);
+    }
+
     template<simd::VWidth N>
     [[nodiscard]] inline status::statat_t http::parse_request(u8_t * const b, u8_t *p, ReqLine& out, const std::size_t run_size) noexcept
     {
@@ -359,7 +402,8 @@ namespace httpvo::Implementation
         const std::size_t o = val_end.offset;
         if ((run_size - o) < 10)
             return {status::expect_bytes, run_size};
-        if (out.set_version(b + o) or is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
+        const int expected_version = set_version<setup::http>(b + o, out);
+        if (not expected_version or is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
             return {status::error, o};
         return {0, o + 10};
     }
