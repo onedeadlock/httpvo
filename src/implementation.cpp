@@ -63,35 +63,34 @@ namespace httpvo::Implementation
         return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
      }
 
-    inline int is_not_end_of_line_v(const u8_t * const b, auto& e)
+    inline int http::end_of_parse(const u32_t v) noexcept
     {
-        static constexpr u32_t CRLF = 0x0a0d, CRLFCRLF = 0x0a0d0a0d;
-        const u32_t v = simdv<8>::_load_u32(b);
-        e = (v == CRLFCRLF);
-        return (v & 0xffffu) != CRLF;
+        constexpr u32_t CRLF = 0x0a0d;
+        is_end_of_parse_marker = v == (CRLF | (CRLF << 16));
+        return (v & 0xffffu) == CRLF;
     }
 
-     inline int is_not_end_of_line_p(const u8_t * const b, auto& e)
+    inline int http::end_of_parse_single_load(const u8_t * const b) noexcept
     {
-        const int _is_not_end_of_line = (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
-        e = (b[2] == Character::CarriageReturn and b[3] == Character::LineFeed);
-        return _is_not_end_of_line;
+        if constexpr (setup::little_endian and not setup::no_vectorize)
+            return not is_end_of_parse(simdv<8>::_load_u32(b));
+        else
+        {
+#           define USH(c, n) is_end_of_parse(static_cast<u32_t>(c) << (n))
+            // GCC and clang should fold these shifts into a single DWORD load (with a bswap in Big Endian mode)
+            const u32_t LD = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH(b[3], 24);
+            return is_end_of_parse(LD);
+         }
     }
 
+     
     inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
-        // TODO: special function for mixed crlf and lf as end of line char. Fix return values not matching status code
+        // :: assume rem >= 2
         if constexpr (setup::end_of_line_is_line_feed)
-            pass();
-
+            pass(); // TODO
         if (rem > 3) [[likely]]
-        {
-            if constexpr (not setup::no_vectorize and setup::little_endian)
-                return is_not_end_of_line_v(b, this->end_of_parse);
-            return is_not_end_of_line_p(b, this->end_of_parse);
-        }
-        if (not rem) [[unlikely]]
-            return status::expect_bytes | (b[0] != Character::CarriageReturn); 
+            return not is_end_of_parse_single_load(b);
          return (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
     }
 
@@ -121,7 +120,7 @@ namespace httpvo::Implementation
                 const u8_t * const q = p + simdv<N>::countzero_bitmask(control_char);
                 const std::size_t q_offset = static_cast<std::size_t>(q - b);
                 if (is_not_end_of_line(q, run_size - q_offset)) [[unlikely]]
-                    return status::unexpected_char;
+                    return status::unexpected_char; // TODO: end_of_line function changed
                 return out.set_value_end(q_offset, b);
             }
         }
@@ -367,7 +366,7 @@ namespace httpvo::Implementation
         else
         {
 #           define USH(c, n) (static_cast<u32_t>(c) << (n))
-            // GCC and clang fold these shifts to a single load (and bswap on big endian). It is not the case for MSVC, but the cost of byte compares is the same.
+            // Again, GCC and clang should fold these shifts into a single QWORD load (with a bswap on Big Endian mode). It is not the case for MSVC, but the cost against byte compares is almost the same.
             // @discard_reginfo: clang sees that byte 7 is unused, discards it, and so emit 3 loads (first 4 bytes, next two bytes and the last byte) instead of 1 for the 8 bytes.
             u64_t LD = 0;
             LD |= static_cast<u64_t>(USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24));
