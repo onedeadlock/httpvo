@@ -73,16 +73,16 @@ namespace httpvo::Implementation
     inline int http::end_of_parse_single_load(const u8_t * const b) noexcept
     {
         if constexpr (setup::little_endian and not setup::no_vectorize)
-            return not is_end_of_parse(simdv<8>::_load_u32(b));
+            return end_of_parse(simdv<8>::_load_u32(b));
         else
         {
-#           define USH(c, n) is_end_of_parse(static_cast<u32_t>(c) << (n))
+#           define USH(c, n) (static_cast<u32_t>(c) << (n))
             // GCC and clang should fold these shifts into a single DWORD load (with a bswap in Big Endian mode)
             const u32_t LD = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH(b[3], 24);
-            return is_end_of_parse(LD);
+            return end_of_parse(LD);
+#           undef USH
          }
     }
-
      
     inline int http::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
