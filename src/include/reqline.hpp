@@ -40,9 +40,9 @@ namespace httpvo
             else
             {
 #               define USH(c, n) (static_cast<const u32_t>(c) << (n))
-                // GCC and clang fold these shifts to two loads (and bswap on big endian) so that the test is always correct.
-                const u32_t LDLO = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH((b[3], 24);
-                const u32_t LDHI = USH(b[3], 0) | USH(b[4], 8) | USH(b[5], 16) | USH((b[6], 24); // added byte 4 of @LDLO to make it 4 bytes
+                // GCC and clang fold these shifts to two loads (and bswap on big endian).
+                const u32_t LDLO = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH(b[3], 24);
+                const u32_t LDHI = USH(b[3], 0) | USH(b[4], 8) | USH(b[5], 16) | USH(b[6], 24); // added byte 4 of @LDLO to make it 4 bytes
                 const u32_t is_not_http      = LDLO ^ 0x50545448U;
                 const u32_t is_not_slash1dot = LDHI ^ 0x2e312f50U;
                 return (is_not_http | is_not_slash1dot) == 0;
