@@ -24,22 +24,6 @@ namespace httpvo::Implementation
         else return (c == Character::Space) | (c == Character::HorizontalTab);
     }
 
-    template <int X, int Y, simd::VWidth N>
-    inline std::size_t is_out_of_range(const u8_t * const b)
-    {
-        static_assert(X == 0x21 and Y == 0x7e);
-        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
-            return simdv<N>::countzero_bitmask(mask);
-        return N;
-    };
-
-    template<>
-    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
-    {
-        static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
-        return static_cast<const i8_t>(*b + 0x5f) > -0x23;
-    }
-
     inline std::size_t __size(const u8_t * const e, const u8_t * const s)
     {
         return static_cast<std::size_t>(e - s);
@@ -84,7 +68,6 @@ namespace httpvo::Implementation
         return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
      }
 
-    template<class T>
     inline int Parse::end_of_parse(const u32_t v) noexcept
     {
         constexpr u32_t CRLF = 0x0a0d;
@@ -92,7 +75,6 @@ namespace httpvo::Implementation
         return (v & 0xffffu) == CRLF;
     }
 
-    template<class T>
     inline int Parse::end_of_parse_single_load(const u8_t * const b) noexcept
     {
         if constexpr (setup::little_endian and not setup::no_vectorize)
@@ -107,7 +89,6 @@ namespace httpvo::Implementation
          }
     }
     
-    template<class T>
     inline int Parse::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
         // :: assume rem >= 2
@@ -136,6 +117,59 @@ namespace httpvo::Implementation
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+
+
+    template <int X, int Y, simd::VWidth N>
+    inline std::size_t is_out_of_range(const u8_t * const b)
+    {
+        static_assert(X == 0x21 and Y == 0x7e);
+        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
+            return simdv<N>::countzero_bitmask(mask);
+        return N;
+    };
+
+    template<>
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
+    {
+        static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
+        return static_cast<const i8_t>(*b + 0x5f) > -0x23;
+    }
+
+    inline bool is_expected_minor_version(const int minor, ReqLine& out)
+    {
+         return (out.version = minor ^ 0x30) < 10;
+    }
+
+    template<class T>
+    inline bool is_protocol(const u64_t proto)
+    {
+        constexpr u64_t http_slash_one_dot = 0x2e312f5054544800ULL;
+        constexpr u64_t rtsp_slash_one_dot = 0x2e312f5053545200ULL;
+        constexpr u64_t rtsp_slash_two_dot = 0x2e322f5053545200ULL;
+        if constexpr (std::is_same_v<T, Rtsp_Protocol>)
+            return (proto == rtsp_slash_two_dot) | (proto == rtsp_slash_one_dot);
+        else return proto == http_slash_one_dot;
+    }
+
+    template<class T>
+    inline bool set_version(const u8_t * const b, ReqLine& out)
+    {
+        // :: assume len(b) >= 8
+        u64_t LD = 0;
+        if constexpr (setup::little_endian)
+            LD = simd::simdv<8>::_load_u64(b);
+        else
+        {
+#           define USH(c, n) (static_cast<u64_t>(c) << (n))
+            // Again, GCC and clang should fold these shifts into a single QWORD load (with a bswap on Big Endian mode). It is not the case for MSVC, but the cost against per byte compare, is almost the same.
+            // @discard_reginfo: clang sees that the last byte is discarded and then reused singly, so it emit 4 loads (first 4 bytes, next two + 1 bytes, and the last byte) instead of 1 for the 8 bytes.
+            LD |= USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24);
+            LD |= USH(b[4], 32) | USH(b[5], 40) | USH(b[6], 48) | USH(b[7], 56);
+            httpvo_discard_reginfo(LD);
+#           undef USH
+        }
+        return is_protocol<T>(LD << 8) & is_expected_minor_version(LD >> 56, out);
+    }
 
     inline std::size_t _offset_of_non_tchar(const u8_t * const b, const std::size_t i, const std::size_t len)
     {
@@ -220,7 +254,7 @@ namespace httpvo::Implementation
     inline const u8_t * trim_whitespace(const u8_t *b, const u8_t * const end)
     {
         if (not is_whitespace<u8_t, true>(b[0])) [[likely]]
-            return p;
+            return b;
         if constexpr (setup::no_multispace)
             return end;
         else
@@ -243,7 +277,7 @@ namespace httpvo::Implementation
             if constexpr (setup::no_multispace) return end;
             else while (++b < end and is_whitespace<u8_t, true>(b[0])) pass();
         }
-        return p;
+        return b;
     }
 
     inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t len, ReqLine& out)
@@ -287,7 +321,7 @@ namespace httpvo::Implementation
     template <simd::VWidth N>
     inline status::statat_t _find_request_url_end_main(const u8_t *b, const std::size_t offset, const std::size_t len, ReqLine& out)
     {
-        const u8_t * const end = b + len;
+        const u8_t * const end = (b + offset) + len;
         const u8_t *p = trim_whitespace<N>(b + offset, end);
         if (p == end) [[unlikely]]
             return __status_bad_or_expect(p, b);
@@ -298,6 +332,7 @@ namespace httpvo::Implementation
         p += 1;
         if (p < end and (p = trim_whitespace<N>(p, end)) == end) [[unlikely]]
             return __status_bad_or_expect(p, b);
+        std::cout << (end - 2) << std::endl;
         return {__size(end, p) < (setup::req_line_min_size - 4), out.advance(__size(p, b))};
     }
    
@@ -317,48 +352,12 @@ namespace httpvo::Implementation
         }
     }
 
-    inline bool is_expected_minor_version(const int minor, ReqLine& out)
-    {
-         return (out.version = minor ^ 0x30) < 10;
-    }
-
-    template<class T>
-    inline bool is_protocol(const u64_t proto)
-    {
-        constexpr u64_t http_slash_one_dot = 0x2e312f5054544800ULL;
-        constexpr u64_t rtsp_slash_one_dot = 0x2e312f5053545200ULL;
-        constexpr u64_t rtsp_slash_two_dot = 0x2e322f5053545200ULL;
-        if constexpr (std::is_same_v<T, Rtsp_Protocol>)
-            return (proto == rtsp_slash_two_dot) | (proto == rtsp_slash_one_dot);
-        else return proto == http_slash_one_dot;
-    }
-
-    template<class T>
-    inline bool set_version(const u8_t * const b, ReqLine& out)
-    {
-        // :: assume len(b) >= 8
-        u64_t LD = 0;
-        if constexpr (setup::little_endian)
-            LD = simd::simdv<8>::_load_u64(b);
-        else
-        {
-#           define USH(c, n) (static_cast<u64_t>(c) << (n))
-            // Again, GCC and clang should fold these shifts into a single QWORD load (with a bswap on Big Endian mode). It is not the case for MSVC, but the cost against per byte compare, is almost the same.
-            // @discard_reginfo: clang sees that the last byte is discarded and then reused singly, so it emit 4 loads (first 4 bytes, next two + 1 bytes, and the last byte) instead of 1 for the 8 bytes.
-            LD |= USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24);
-            LD |= USH(b[4], 32) | USH(b[5], 40) | USH(b[6], 48) | USH(b[7], 56);
-            httpvo_discard_reginfo(LD);
-#           undef USH
-        }
-        return is_protocol<T>(LD << 8) & is_expected_minor_version(LD >> 56, out);
-    }
-
     template<simd::VWidth N>
     [[nodiscard]] inline status::statat_t end_of_method_and_url(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         if (run_size < setup::req_line_min_size) [[unlikely]]
             return status::expect_bytes;
-        const status::statat_t end_of_method = find_request_method_end<N>(b, run_size, out);
+        const status::statat_t end_of_method = find_request_method_end(b, run_size, out);
         if (end_of_method != 0) [[unlikely]]
             return end_of_method;
         const  std::size_t o = end_of_method.offset + 1;
@@ -370,7 +369,7 @@ namespace httpvo::Implementation
     {
         const status::statat_t end_of_mthurl = end_of_method_and_url<N>(b, run_size, out);
         if (end_of_mthurl != 0) [[unlikely]]
-            return end_of_url;
+            return end_of_mthurl;
         const std::size_t o = end_of_mthurl.offset;
         if ((set_version<Protocol>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
             return {status::error, o};
@@ -378,13 +377,13 @@ namespace httpvo::Implementation
     }
 
     template<simd::VWidth N, class Protocol=Http_Protocol>
-    [[nodiscard]] inline status::statat_t Parse::response_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status::statat_t Parse::response_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         return 0;
     }
 
     template <simd::VWidth N>
-    [[nodiscard]] inline status Parse::header(u8_t *const b, header_view &out, const std::size_t run_siz) noexcept
+    [[nodiscard]] inline status Parse::header(u8_t *const b, header_view &out, const std::size_t run_size) noexcept
     {
         static_assert(N == 16 or N == 32);
         const u8_t *const stop = b + bits::align(run_size, N);
@@ -416,17 +415,17 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
 
-    template <simd::VWidth N>
+    template <>
     [[nodiscard]] inline status Parse::header<0>(u8_t *b, header_view &out, const std::size_t run_size) noexcept
     {
-        const std::size_t n_offset = find_non_tchar<0>(b, run_size);
+        const std::size_t n_offset = find_non_tchar<false>(b, run_size);
         if (n_offset == run_size) [[unlikely]]
             return status::expect_bytes;
         if (b[n_offset] != Character::Colon) [[unlikely]]
             return status::unexpected_char;
         out.set_name_end(n_offset, nullptr);
 
-        const size_t v_offset = find_bad_char_in_value<0>(b, n_offset, run_size);
+        const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
         if (v_offset == run_size) [[unlikely]]
             return status::expect_bytes;
         if (is_not_end_of_line(b + v_offset, run_size - v_offset)) [[unlikely]]

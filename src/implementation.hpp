@@ -25,15 +25,17 @@ namespace httpvo::Implementation
 
     using Rtsp_Protocol = Protocol<0>;
     using Http_Protocol = Protocol<1>;
-
+
+
     class Parse
     {
     public:
         Parse(void) : at_start_line{0}, end_of_parse_marker{0} {}
         template <simd::VWidth N, class Protocol>
-        status::statat_t request_line(u8_t *,  const std::size_t, ReqLine&) noexcept;
+        status::statat_t request_line(const u8_t *,  const std::size_t, ReqLine&) noexcept;
         template<simd::VWidth N, class Protocol>
-        status::statat_t response_line(u8_t *, const std::size_t, ReqLine&) noexcept;
+        status::statat_t response_line(const u8_t *, const std::size_t, ReqLine&) noexcept;
+
         template<simd::VWidth N>
         status header(u8_t *, header_view&, const std::size_t) noexcept;
         private:
