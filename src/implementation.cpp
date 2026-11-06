@@ -212,7 +212,7 @@ namespace httpvo::Implementation
          constexpr mask_t ALL_WHITESPACE = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
          const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
          if (mask != ALL_WHITESPACE) [[likely]]
-              return simdv<N>::countzero_bitmask(mask);
+              return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
           return N;
 }
 
