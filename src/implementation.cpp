@@ -168,11 +168,11 @@ namespace httpvo::Implementation
         return j;
     }
 
-    inline std::size_t offset_of_bad_char_in_value(const u8_t *const p)
+    inline std::size_t offset_of_bad_char_in_value(const u8_t *const b)
     {
         if constexpr (setup::no_vectorize)
-            return _offset_of_bad_char_in_value(p, 0, 8);
-        if (const mask_t offset = simdv<8>(p).is_not_print_char())
+            return _offset_of_bad_char_in_value(b, 0, 8);
+        if (const mask_t offset = simdv<8>(b).is_not_print_char())
             return simdv<8>::countzero_bitmask(offset);
         return 8;
     }
@@ -191,66 +191,66 @@ namespace httpvo::Implementation
     }
 
     template <int X, int Y, simd::VWidth N>
-    inline std::size_t is_out_of_range(const u8_t * const p)
+    inline std::size_t is_out_of_range(const u8_t * const b)
     {
         static_assert(X == 0x21 and Y == 0x7e);
-        if (const mask_t mask = simdv<N>(p).template cmpngt_lt<X, Y>()) [[unlikely]]
+        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
             return simdv<N>::countzero_bitmask(mask);
         return N;
     };
 
     template<>
-    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const p)
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
     {
         static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
-        return static_cast<const i8_t>(*p + 0x5f) > -0x23;
+        return static_cast<const i8_t>(*b + 0x5f) > -0x23;
     }
 
     template<simd::VWidth N>
-    inline std::size_t first_non_whitespace(const u8_t * const p)
+    inline std::size_t first_non_whitespace(const u8_t * const b)
     {
          constexpr mask_t ALL_WHITESPACE = bits::mask_fill<mask_t>(N, simdv<N>::bitpos);
-         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(p));
+         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
          if (mask != ALL_WHITESPACE) [[likely]]
               return simdv<N>::countzero_bitmask(mask);
           return N;
 }
 
     template<simd::VWidth N>
-    inline const u8_t * trim_whitespace(const u8_t *p, const u8_t * const end)
+    inline const u8_t * trim_whitespace(const u8_t *b, const u8_t * const end)
     {
-        if (not is_whitespace<u8_t, true>(p[0])) [[likely]]
+        if (not is_whitespace<u8_t, true>(b[0])) [[likely]]
             return p;
         if constexpr (setup::no_multispace)
             return end;
         else
         {
               const u8_t * const stop = end - N;
-              for (; p < stop; p += N)
+              for (; b < stop; b += N)
               {
-                   const std::size_t offset = first_non_whitespace<N>(p);
-                   if (offset < N) return p + offset;
+                   const std::size_t offset = first_non_whitespace<N>(b);
+                   if (offset < N) return b + offset;
                }
                return stop + first_non_whitespace<N>(stop);
          }
     }
 
     template<>
-    inline const u8_t * trim_whitespace<1>(const u8_t *p, const u8_t * const end)
+    inline const u8_t * trim_whitespace<1>(const u8_t *b, const u8_t * const end)
     {
-        if (is_whitespace<u8_t, true>(p[0])) [[unlikely]]
+        if (is_whitespace<u8_t, true>(b[0])) [[unlikely]]
         {
             if constexpr (setup::no_multispace) return end;
-            else while (++p < end and is_whitespace<u8_t, true>(p[0])) pass();
+            else while (++b < end and is_whitespace<u8_t, true>(b[0])) pass();
         }
         return p;
     }
 
-    inline status::statat_t find_request_method_end(const u8_t * const p, const std::size_t len, ReqLine& out)
+    inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t len, ReqLine& out)
     {
-        if (const std::size_t offset = find_non_tchar<1>(p, len); offset != len) [[likely]]
+        if (const std::size_t offset = find_non_tchar<1>(b, len); offset != len) [[likely]]
         {
-            if (not is_whitespace<u8_t, true>(p[offset])) [[unlikely]]
+            if (not is_whitespace<u8_t, true>(b[offset])) [[unlikely]]
                 return status::unexpected_char;
             return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
         }
@@ -258,23 +258,23 @@ namespace httpvo::Implementation
     }
 
     template <simd::VWidth N>
-    inline const u8_t * _find_request_url_end(const u8_t *p, const u8_t * const end)
+    inline const u8_t * _find_request_url_end(const u8_t *b, const u8_t * const end)
     {
         const u8_t * const stop = end - N;
-        for (; p < stop; p += N)
+        for (; b < stop; b += N)
         {
-            if (const std::size_t offset = is_out_of_range<0x21, 0x7e, N>(p); offset < N)
-                return p + offset;
+            if (const std::size_t offset = is_out_of_range<0x21, 0x7e, N>(b); offset < N)
+                return b + offset;
         }
         return stop + is_out_of_range<0x21, 0x7e, N>(stop);
     }
 
     template <>
-    inline const u8_t * _find_request_url_end<1>(const u8_t *p, const u8_t * const end)
+    inline const u8_t * _find_request_url_end<1>(const u8_t *b, const u8_t * const end)
     {
-        for (; p < end and not is_out_of_range<0x21, 0x7e, 1>(p); p += 1)
+        for (; b < end and not is_out_of_range<0x21, 0x7e, 1>(b); b += 1)
             pass();
-        return p;
+        return b;
     }
 
     inline status::statat_t __status_bad_or_expect(const u8_t * const e, const u8_t * const s)
@@ -285,7 +285,7 @@ namespace httpvo::Implementation
     }
    
     template <simd::VWidth N>
-    inline status::statat_t _find_request_url_end_main(const u8_t * const b, const std::size_t offset, const std::size_t len, ReqLine& out)
+    inline status::statat_t _find_request_url_end_main(const u8_t *b, const std::size_t offset, const std::size_t len, ReqLine& out)
     {
         const u8_t * const end = b + len;
         const u8_t *p = trim_whitespace<N>(b + offset, end);
@@ -356,7 +356,7 @@ namespace httpvo::Implementation
 
     template<class T>
     template<simd::VWidth N>
-    [[nodiscard]] inline status::statat_t Parse<T>::request_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status::statat_t Parse<T>::request_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         if (run_size < setup::req_line_min_size) [[unlikely]]
             return status::expect_bytes;
