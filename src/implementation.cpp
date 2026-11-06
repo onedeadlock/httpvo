@@ -124,14 +124,14 @@ namespace httpvo::Implementation
     inline std::size_t _offset_of_non_tchar(const u8_t * const b, const std::size_t i, const std::size_t len)
     {
         std::size_t j = i;
-        for (; j < len and TCHAR_LUT[b[j]] & 1; j++) pass();
+        for (; j < len and TCHAR_LUT[b[j]] == 3; j++) pass();
         return j;
     }
 
     inline std::size_t _offset_of_non_tchar_mask(const u8_t * const b, const mask_t mask)
     {
         for (mask_t m = mask; m; m = bits::clear_least_set_bit(m))
-            if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] ^ 3) return offset;
+            if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] == 3) return offset;
         return 8;
     }
 
@@ -252,8 +252,7 @@ namespace httpvo::Implementation
         {
             if (not is_whitespace<u8_t, true>(p[offset])) [[unlikely]]
                 return status::unexpected_char;
-            out.advance(offset);
-            return {(len - offset) < setup::req_line_min_size - 2, offset};
+            return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
         }
         return status::expect_bytes;
     }
@@ -278,44 +277,44 @@ namespace httpvo::Implementation
         return p;
     }
 
-    inline status::statat_t __status_bad_or_expect(const u8_t * const b, const u8_t * const p)
+    inline status::statat_t __status_bad_or_expect(const u8_t * const e, const u8_t * const s)
     {
         if constexpr (setup::no_multispace)
-            return   {status::bad_whitespace, __size(p, b)};
-        else return  {status::expect_bytes,   __size(p, b)};
+            return   {status::bad_whitespace, __size(e, s)};
+        else return  {status::expect_bytes,   __size(e, s)};
     }
    
     template <simd::VWidth N>
-    inline status::statat_t _find_request_url_end_main(const u8_t * const b, const u8_t *p, const std::size_t len, ReqLine& out)
+    inline status::statat_t _find_request_url_end_main(const u8_t * const b, const std::size_t offset, const std::size_t len, ReqLine& out)
     {
         const u8_t * const end = b + len;
-        if (p = trim_whitespace<N>(p, end); p == end) [[unlikely]]
-            return __status_bad_or_expect(b, p);
+        const u8_t *p = trim_whitespace<N>(b + offset, end);
+        if (p == end) [[unlikely]]
+            return __status_bad_or_expect(p, b);
         if  (p = _find_request_url_end<N>(p, end); p == end) [[unlikely]]
             return {status::expect_bytes, __size(p, b)};
         if (not is_whitespace<u8_t, true>(p[0])) [[unlikely]]
             return {status::unexpected_char, __size(p, b)};
         p += 1;
         if (p < end and (p = trim_whitespace<N>(p, end)) == end) [[unlikely]]
-            return __status_bad_or_expect(b, p);
-        const std::size_t offset = __size(p, b);
-        return {out.advance(offset) == status::excess, offset};
+            return __status_bad_or_expect(p, b);
+        return {__size(end, p) < (setup::req_line_min_size - 4), out.advance(__size(p, b))};
     }
    
     template <simd::VWidth N>
-    inline status::statat_t find_request_url_end(const u8_t * const b, const u8_t *p, const std::size_t len, ReqLine& out)
+    inline status::statat_t find_request_url_end(const u8_t * const b, const std::size_t offset, const std::size_t len, ReqLine& out)
     {
         /* TODO: check len logic. len here is not actual buffer size but the buffer_size - method end offset */
         if constexpr (setup::no_vectorize)
-            return _find_request_url_end_main<1>(b, p, len, out);
+            return _find_request_url_end_main<1>(b, offset, len, out);
         else
         {
             if (len < N)
             {
-                if (len < 8) [[unlikely]] return _find_request_url_end_main<1>(b, p, len, out);
-                return _find_request_url_end_main<8>(b, p, len, out);
+                if (len < 8) [[unlikely]] return _find_request_url_end_main<1>(b, offset, len, out);
+                return _find_request_url_end_main<8>(b, offset, len, out);
             }
-            return _find_request_url_end_main<N>(b, p, len, out);
+            return _find_request_url_end_main<N>(b, offset, len, out);
         }
     }
 
@@ -355,16 +354,6 @@ namespace httpvo::Implementation
         return is_protocol<T>(LD << 8) & is_expected_minor_version(LD >> 56, out);
     }
 
-    template<simd::VWidth N>
-    [[nodiscard]] inline status::statat_t end_of_method_url(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
-    {
-        const status::statat_t end_of_method = find_request_method_end(b, run_size, out);
-        if (end_of_method != 0) [[unlikely]]
-            return end_of_method;
-        const std::size_t n = end_of_method.offset + 1;
-        return find_request_url_end<N>(b, b + n, run_size - n, out);
-    }
-
     template<class T>
     template<simd::VWidth N>
     [[nodiscard]] inline status::statat_t Parse<T>::request_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
@@ -375,12 +364,10 @@ namespace httpvo::Implementation
         if (end_of_method != 0) [[unlikely]]
             return end_of_method;
         const std::size_t n = end_of_method.offset + 1;
-        const status::statat_t end_of_url = find_request_url_end<N>(b, b + n, run_size - n, out);
+        const status::statat_t end_of_url = find_request_url_end<N>(b, n, run_size - n, out);
         if (end_of_url != 0) [[unlikely]]
             return end_of_url;
         const std::size_t o = end_of_url.offset;
-        if ((run_size - o) < setup::req_line_min_size - 4)
-            return {status::expect_bytes, run_size};
         if ((set_version<T>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
             return {status::error, o};
         return {0, o + 10};
@@ -394,7 +381,7 @@ namespace httpvo::Implementation
     }
 
     template<class T> 
-    template <class U, simd::VWidth N>
+    template <simd::VWidth N> 
     struct Parse<T>::ParseHeaderTag
     {
         [[nodiscard]] static inline status parse_header(u8_t *const b, header_view &out, const std::size_t run_size, Parse<T>& self) noexcept
@@ -431,8 +418,8 @@ namespace httpvo::Implementation
     };
 
     template<class T>
-    template <class U, simd::VWidth N>
-    struct Parse<T>::ParseHeaderTag<U, 0>
+    template <simd::VWidth N>
+    struct Parse<T>::ParseHeaderTag<0>
     {
         [[nodiscard]] inline status parse_header(u8_t *b, header_view &out, const std::size_t run_size, Parse<T>& self) noexcept
         {
@@ -456,7 +443,7 @@ namespace httpvo::Implementation
     template <simd::VWidth N>
     [[nodiscard]] inline status Parse<T>::parse_header(u8_t *b, header_view &out, const std::size_t run_size) noexcept
     {
-        return ParseHeaderTag<T, N>::parse_header(b, out, run_size, *this);
+        return ParseHeaderTag<N>::parse_header(b, out, run_size, *this);
     }
 } // NAMESPACE::HTTVO
 #endif // HTTPVO_IMPLEMENTATION_SCALAR_HPP

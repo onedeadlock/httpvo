@@ -35,7 +35,7 @@ namespace httpvo::Implementation
         status::statat_t request_line(u8_t *,  const std::size_t, ReqLine&) noexcept;
         template<simd::VWidth N>
         status::statat_t response_line(u8_t *, const std::size_t, ReqLine&) noexcept;
-        template <class U, simd::VWidth N=0>
+        template <simd::VWidth N = 0>
         struct ParseHeaderTag;
         template<simd::VWidth N>
         status parse_header(u8_t *, header_view&, const std::size_t) noexcept;

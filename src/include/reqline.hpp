@@ -15,10 +15,12 @@ namespace httpvo
             req[0] = req[1] = i = version = 0;
         }
 
-        inline int advance(const std::size_t len)
+        inline std::size_t advance(const std::size_t len)
         {
+             if constexpr (setup::debug)
+                pass();
             req[i] += len;
-            return ++i == 2;
+            return len;
         }
 
         inline int minor_version(void)
