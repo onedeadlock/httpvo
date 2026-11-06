@@ -361,8 +361,8 @@ namespace httpvo::Implementation
         const status::statat_t end_of_method = find_request_method_end<N>(b, run_size, out);
         if (end_of_method != 0) [[unlikely]]
             return end_of_method;
-        const  std::size_t n = end_of_method.offset + 1;
-        return find_request_url_end<N>(b, n, run_size - n, out);
+        const  std::size_t o = end_of_method.offset + 1;
+        return find_request_url_end<N>(b, o, run_size - o, out);
     }
 
     template<simd::VWidth N, class Protocol=Http_Protocol>
@@ -377,7 +377,7 @@ namespace httpvo::Implementation
         return {0, o + 10};
     }
 
-    template<simd::VWidth N>
+    template<simd::VWidth N, class Protocol=Http_Protocol>
     [[nodiscard]] inline status::statat_t Parse::response_line(u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         return 0;
