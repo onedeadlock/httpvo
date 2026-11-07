@@ -93,10 +93,10 @@ namespace httpvo::bits
     {
         if constexpr (setup::debug)
             assert(x > 0);
-#       if defined(_tzcnt_u64)
-            return _tzcnt_u64(x);
-#       elif HTTPVO_GNUC_COMPARTIBLE__
+#       if HTTPVO_GNUC_COMPARTIBLE__
             return __builtin_ctzll(x);
+#       elif HTTPVO_HAVE_MSVC__ or defined(_tzcnt_u64)
+            return _tzcnt_u64(x);
 #       else
             x |= x >> 1;  x |= x >> 2;
             x |= x >> 4;  x |= x >> 8;

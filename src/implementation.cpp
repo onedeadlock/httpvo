@@ -181,16 +181,17 @@ namespace httpvo::Implementation
     inline std::size_t _offset_of_non_tchar_mask(const u8_t * const b, const mask_t mask)
     {
         for (mask_t m = mask; m; m = bits::clear_least_set_bit(m))
-            if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] == 3) return offset;
+            if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] == 3)
+                return offset;
         return 8;
     }
-
+    
     template<bool ALPHAONLY>
     make_flat inline std::size_t offset_of_non_tchar(const u8_t * const b)
     {
         if constexpr (not setup::no_vectorize)
         {
-            if (const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>()) [[unlikely]] // fast pre-check
+            if (const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>()) [[likely]] // fast pre-check
                 return _offset_of_non_tchar_mask(b, mask);
             return 8;
         }
@@ -200,15 +201,17 @@ namespace httpvo::Implementation
     template<bool ALPHAONLY>
     make_flat inline std::size_t find_non_tchar(const u8_t * const b, const std::size_t len)
     {
-        if (setup::optimize_for_most_case or len < 8) [[likely]]
+        if (len < 8) [[unlikely]]
             return _offset_of_non_tchar(b, 0, len);
-        const u8_t * const end = b + (len - 8);
-        for (const u8_t *p = b; p < end; p += 8)
+        const u8_t * const stop = b + (len - 8);
+        for (const u8_t *p = b; p < stop; p += 8)
         {
             if (const std::size_t offset = offset_of_non_tchar<ALPHAONLY>(p); offset < 8)
+            {
                 return offset + size(p, b);
+            }
         }
-        return offset_of_non_tchar<ALPHAONLY>(end) + (len - 8);
+        return offset_of_non_tchar<ALPHAONLY>(stop) + (len - 8);
     }
 
     inline std::size_t _offset_of_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
@@ -291,8 +294,7 @@ namespace httpvo::Implementation
         return status::expect_bytes;
     }
 
-    HTTPO_START_NO_DIAGNOSE_ARRAY_BOUNDS
-    //
+    HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
     template <simd::VWidth N>
     inline const u8_t * _find_request_url_end(const u8_t *b, const u8_t * const end)
     {
@@ -304,7 +306,7 @@ namespace httpvo::Implementation
         }
         return stop + is_out_of_range<0x21, 0x7e, N>(stop);
     }
-    HTTPO_START_NO_DIAGNOSE_ARRAY_BOUNDS
+    HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
 
     template <>
     inline const u8_t *_find_request_url_end<1>(const u8_t *b, const u8_t *const end)
@@ -330,7 +332,6 @@ namespace httpvo::Implementation
             return __status_bad_or_expect(p, b);
         if  (p = _find_request_url_end<N>(p, end); p == end) [[unlikely]]
             return {status::expect_bytes, size(p, b)};
-        return {0, 6};
         if (not is_whitespace<u8_t, true>(p[0])) [[unlikely]]
             return {status::unexpected_char, size(p, b)};
         p += 1;
@@ -368,7 +369,7 @@ namespace httpvo::Implementation
     template<simd::VWidth N, class Protocol=Http_Protocol>
     [[nodiscard]] inline status::statat_t Parse::request_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
-        const status::statat_t end_of_mthurl =  end_of_method_and_url<N>(b, run_size, out);
+        const status::statat_t end_of_mthurl = end_of_method_and_url<N>(b, run_size, out);
         if (end_of_mthurl != 0) [[unlikely]]
             return end_of_mthurl;
         const std::size_t o = end_of_mthurl.offset;

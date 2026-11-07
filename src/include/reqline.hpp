@@ -6,8 +6,8 @@ namespace httpvo
 {
     struct ReqLine
     {
-        std::size_t req[3]{0};
-        i8_t i=0, version=0;
+        std::size_t req[2];
+        u8_t i, version;
 
 
         inline void reset(void)
@@ -19,7 +19,7 @@ namespace httpvo
         {
              if constexpr (setup::debug)
                 pass();
-            req[i] += len;
+            req[i++] += len;
             return len;
         }
 

@@ -148,19 +148,19 @@
 #if HTTPVO_GNUC_COMPARTIBLE__
 #   define httpvo_memcopy __builtin_memcpy
 #   define httpvo_discard_reginfo(r) __asm__("" : "+r"(r))
-#   define HTTPO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
+#   define HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
         _Pragma("GCC diagnostic push")\
         _Pragma("GCC diagnostic ignored \"-Warray-bounds\"")
-#   define HTTPO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
+#   define HTTPVO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
         _Pragma("GCC diagnostic pop")
 #else
 #   define httpvo_memcopy memcpy
 #   define httpvo_discard_reginfo(r) ((void)0)
 #   if HTTPVO_HAVE_MSVC__
-#       define HTTPO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
+#       define HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
             __Pragma(warning(push))\
             __Pragma(warning(disable: 4789))
-#       define HTTPO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
+#       define HTTPVO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
             __Pragma(warning(pop))
 #   endif
 #endif

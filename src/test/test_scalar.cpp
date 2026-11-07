@@ -2,29 +2,25 @@
 #include "../implementation.cpp"
 
 using namespace httpvo;
-alignas(8) static char str[] = "GET https://g232332o279627368472368472364872348792734627346927346928346923846923846932323232332ogle.com/index HTTP1.1\r\n";
-
-void correct_request_line_index(void)
-{
-     Implementation::http test_parse;
-     std::size_t len = strlen(str);
-     (void)len;
-}
+alignas(8) static char request[] = "GET https://g232332o279627368472368472364872348792734627346927346928346923846923846932323232332ogle.com/index HTTP/1.1\r\n";
 
 static void BM_speed_test_1(benchmark::State& state)
 {
-     Implementation::http test_parse;
-     ReqLine req;
-     req.request();
+    std::size_t len = std::strlen(request);
+    httpvo::Implementation::Parse parser;
+    httpvo::ReqLine req{0};
 
-     std::size_t len = strlen(str);
-
-     for (auto _ : state)
-     {
-        auto res = test_parse.parse_line<16>((u8_t *)str, (u8_t *)str, req, len, constant::cff, 0);
-        benchmark::DoNotOptimize(res);
-        req.request();
-     }
+    for (auto _ : state)
+    {
+        auto status = parser.request_line<8>(reinterpret_cast<uint8_t *>(request), len, req);
+        if (status != 0)
+        {
+            std::cout << status.stat << ' ' << status.offset << std::endl;
+            exit(-1);
+        }
+        benchmark::DoNotOptimize(status);
+        req.reset();
+    }
 }
 
 BENCHMARK(BM_speed_test_1)->Repetitions(10)->Iterations(64900)->ReportAggregatesOnly()->MinWarmUpTime(5);
