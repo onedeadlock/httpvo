@@ -11,9 +11,9 @@ namespace httpvo::simd
 
         __m256i lo;
 
-        simdv(const simdv& v)  : lo{v.lo}{}
-        simdv(simdv&& v)       : lo{v.lo}{}
+        simdv(void) = default;
         simdv(__m256i u)       : lo{u}{}
+        simdv(const simdv& v)  : lo{v.lo}{}
         explicit simdv(const void *b)
         {
             lo = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));

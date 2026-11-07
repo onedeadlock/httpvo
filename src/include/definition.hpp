@@ -13,32 +13,31 @@
 #    include <arm_neon.h>
 #endif
 
-
 #ifndef HTTPVO_DEBUG
 #    define HTTPVO_DEBUG 0
 #else
 #    include <iostream>
 #endif
 
-#define is ==
-#define isnot !=
-
 #if defined(__GNUC__)
-#    define HTTPVO_GNUC_COMPAT__ __GNUC__
-#    define HTTPVO_HAVE_GNUC__ 1
-#endif
-
-#if defined(__clang__) && !defined(HTTPVO_GNUC_COMPAT__)
-#    define HTTPVO_GNUC_COMPAT__ __clang__
+#    define HTTPVO_HAVE_GNUC__ __GNUC__
+#else
 #    define HTTPVO_HAVE_GNUC__ 0
 #endif
 
-#if !defined(HTTPVO_GNUC_COMPAT__)
-#    define HTTPVO_GNUC_COMPAT__ 0
-#    define HTTPVO_HAVE_GNUC__   0
+#if defined(__clang__)
+#    define HTTPVO_HAVE_CLANG__ __clang__
+#else
+#    define HTTPVO_HAVE_CLANG__ 0
 #endif
 
-#if defined(_MSC_VER)
+#if HTTPVO_HAVE_CLANG__ || HTTPVO_HAVE_GNUC__
+#    define HTTPVO_GNUC_COMPARTIBLE__ 1
+#else
+#    define HTTPVO_GNUC_COMPARTIBLE__ 0
+#endif
+
+#if defined(_MSC_VER) && !defined(__clang__)
 #    define HTTPVO_HAVE_MSVC__ _MSC_VER
 #else
 #   define HTTPVO_HAVE_MSVC__ 0
@@ -81,22 +80,6 @@
 #  define HTTPVO_LITTLE_ENDIAN 0
 #endif
 
-#ifdef HTTPVO_UNALIGNED_ACCESS
-#    HTTPVO_HAVE_UNALIGNED 1
-#endif
-
-#if !defined(HTTPVO_UNALIGNED_ACCESS) && (defined(__x86_64__) || defined(__amd64__) || defined(__aarch64__))
-#    define  HTTPVO_HAVE_UNALIGNED 1
-#endif
-
-#if !defined(HTTPVO_UNALIGNED_ACCESS) && (defined(_M_X64) || defined(_M_AMD64) || defined(_M_ARM64))
-#    define  HTTPVO_HAVE_UNALIGNED 1
-#endif
-
-#if !defined(HTTPVO_HAVE_UNALIGNED)
-#    define  HTTPVO_HAVE_UNALIGNED 0
-#endif
-
 #ifndef HTTPVO_OPTIMIZE_FOR_MOST_CASE
 #    define HTTPVO_OPTIMIZE_FOR_MOST_CASE 1
 #endif
@@ -133,7 +116,7 @@
 #endif
 
 #if 0
-#if  HTTPVO_HAVE_GNUC__
+#if  HTTPVO_GNUC_COMPARTIBLE__
 #    define likely(x)   (__builtin_expect(!!(x), 1))
 #    define unlikely(x) (__builtin_expect(!!(x), 0))
 #elif defined(__cplusplus) && __cplusplus >= 202002L
@@ -145,7 +128,7 @@
 #endif
 #endif
 
-#if   HTTPVO_GNUC_COMPAT__
+#if  HTTPVO_GNUC_COMPARTIBLE__
 #    define inline    __attribute__((__always_inline__)) inline
 #    define make_flat __attribute__((flatten))
 #elif HTTPVO_HAVE_MSVC__
@@ -156,22 +139,30 @@
 #    define make_flat 
 #endif
 
-#if HTTPVO_GNUC_COMPAT__
+#if HTTPVO_HAVE_GNUC__
 #    define TARGET(str) __attribute__((target(str)))
 #else
 #    define TARGET(str) 
 #endif
 
-#if HTTPVO_GNUC_COMPAT__
-#    define httpvo_memcopy __builtin_memcpy
-#    define httpvo_discard_reginfo(r) __asm__("" : "+r"(r))
+#if HTTPVO_GNUC_COMPARTIBLE__
+#   define httpvo_memcopy __builtin_memcpy
+#   define httpvo_discard_reginfo(r) __asm__("" : "+r"(r))
+#   define HTTPO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
+        _Pragma("GCC diagnostic push")\
+        _Pragma("GCC diagnostic ignored \"-Warray-bounds\"")
+#   define HTTPO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
+        _Pragma("GCC diagnostic pop")
 #else
-#    define httpvo_memcopy memcpy
-#    define httpvo_discard_reginfo(r) ((void)0)
-#endif
-
-#if !HTTPVO_GNUC_COMPAT__
-#    define __attribute__()
+#   define httpvo_memcopy memcpy
+#   define httpvo_discard_reginfo(r) ((void)0)
+#   if HTTPVO_HAVE_MSVC__
+#       define HTTPO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
+            __Pragma(warning(push))\
+            __Pragma(warning(disable: 4789))
+#       define HTTPO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
+            __Pragma(warning(pop))
+#   endif
 #endif
 
 #define U32(x)  static_cast<const u32_t>(x)
@@ -203,13 +194,10 @@ namespace httpvo
         static constexpr u8_t arm64  = 0;
         static constexpr u8_t arm32  = 0;
         static constexpr u8_t x86_64 = 0;
+        static constexpr bool little_endian = HTTPVO_LITTLE_ENDIAN;
 
         static constexpr u8_t rtsp = 4;
         static constexpr u8_t http = 8;
-        
-        static constexpr bool support_unaligned = HTTPVO_HAVE_UNALIGNED;
-        static constexpr bool little_endian     = HTTPVO_LITTLE_ENDIAN;
-   
 
         static constexpr bool debug             = HTTPVO_DEBUG;
         static constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
@@ -223,4 +211,10 @@ namespace httpvo
          constexpr u8_t hd_line_min_size  = 5;
      }
 }
+#undef HTTPVO_DEBUG
+#undef HTTPVO_NO_MULTI_WSP
+#undef HTTPVO_LITTLE_ENDIAN
+#undef HTTPVO_NO_LEADING_WSP
+#undef HTTPVO_NO_VECTORIZE
+#undef HTTPVO_OPTIMIZE_FOR_MOST_CASE
 #endif // HTTPVO_DEFINITION_HPP

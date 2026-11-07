@@ -93,16 +93,16 @@ namespace httpvo::bits
     {
         if constexpr (setup::debug)
             assert(x > 0);
-#if defined(_tzcnt_u64)
+#       if defined(_tzcnt_u64)
             return _tzcnt_u64(x);
-#elif HTTPVO_GNUC_COMPAT__
-        return __builtin_ctzll(x);
-#else
+#       elif HTTPVO_GNUC_COMPARTIBLE__
+            return __builtin_ctzll(x);
+#       else
             x |= x >> 1;  x |= x >> 2;
             x |= x >> 4;  x |= x >> 8;
             x |= x >> 16; x |= x >> 32;
             return constant::DeBruijn64_seq[(x * constant::DeBruijn64_const) >> 58];
-#endif
+#       endif
     }
 }
 #endif // HTTPVO_BITS_HPP
