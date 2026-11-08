@@ -43,6 +43,12 @@
 #   define HTTPVO_HAVE_MSVC__ 0
 #endif
 
+#if defined(__cplusplus)
+#    define CXX_VERSION __cplusplus
+#elif HTTPVO_HAVE_MSVC__
+#    define CXX_VERSION _MSVC_LANG
+#endif
+
 #if defined(__AVX2__)
 #    define HTTPVO_HAVE__AVX2__   1
 #else
@@ -122,17 +128,23 @@
 #    define HTTPVO_PRIOTIZE_HTAB 0
 #endif
 
-#if 0
-#if  HTTPVO_GNUC_COMPARTIBLE__
-#    define likely(x)   (__builtin_expect(!!(x), 1))
-#    define unlikely(x) (__builtin_expect(!!(x), 0))
-#elif defined(__cplusplus) && __cplusplus >= 202002L
-#    define likely(x)   (x) [[likely]]
-#    define unlikely(x) (x) [[unlikely]]
+#
+
+#if defined(__cplusplus) && __cplusplus >= 201703L
+#    define HTTPVO_CXX17_LIKELY(...)   (__VA_ARGS__) [[likely]]
+#    define HTTPVO_CXX17_UNLIKELY(...) (__VA_ARGS__) [[unlikely]]
+#elif HTTPVO_GNUC_COMPARTIBLE__
+#    define HTTPVO_CXX17_LIKELY(...)   (__builtin_expect((__VA_ARGS__), 1))
+#    define HTTPVO_CXX17_UNLIKELY(...) (__builtin_expect((__VA_ARGS__), 1))
 #else
-#    define likely(x)   (x)
-#    define unlikely(x) (x)
+#    define HTTPVO_CXX17_LIKELY(x)   (x)
+#    define HTTPVO_CXX17_UNLIKELY(x) (x)
 #endif
+
+#if defined(__cplusplus) && __cplusplus >= 201703L
+#    define HTTPVO_CXX17_CONSTEXPR constexpr
+#else
+#    define HTTPVO_CXX17_CONSTEXPR
 #endif
 
 #if  HTTPVO_GNUC_COMPARTIBLE__

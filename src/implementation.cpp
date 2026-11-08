@@ -20,7 +20,7 @@ namespace httpvo::Implementation
     inline T is_whitespace(const T& c)
     {
         static_assert(std::is_integral<T>() or simd::is_simd_v<T>());
-        if constexpr (SPCONLY) return c == Character::Space;
+        if HTTPVO_CXX17_CONSTEXPR (SPCONLY) return c == Character::Space;
         else return (c == Character::Space) | (c == Character::HorizontalTab);
     }
 
@@ -46,12 +46,11 @@ namespace httpvo::Implementation
     {
         const simdv<N> CTRL_LO = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
         const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
-        if constexpr (setup::neon)
+        if HTTPVO_CXX17_CONSTEXPR (setup::neon)
         {
-            if constexpr (not setup::arm64)
+            if HTTPVO_CXX17_CONSTEXPR (not setup::arm64)
                 return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); // no vqtbl1q
-            else 
-                return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
+            else return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
         }    
         return v.shuf_table(CTRL_LO) > ((v >> 4) & 0xf).shuf_table(CTRL_HI);
     }
@@ -62,7 +61,7 @@ namespace httpvo::Implementation
         const simdv<N> TCHAR_LO = simdv<N>::load_tbl1(TCHAR_CLASS_LUT + 00);
         const simdv<N> TCHAR_HI = simdv<N>::load_tbl1(TCHAR_CLASS_LUT + 16);
 
-        if constexpr (setup::neon)
+        if HTTPVO_CXX17_CONSTEXPR (setup::neon)
            return (v & 0xf).shuf_table(TCHAR_LO).andeqz((v >> 4).shuf_table(TCHAR_HI));
         // skipped first 'v & 0xf' since v >= 0x80 falls to 0 and that is what we need
         return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
@@ -77,7 +76,7 @@ namespace httpvo::Implementation
 
     inline int Parse::end_of_parse_single_load(const u8_t * const b) noexcept
     {
-        if constexpr (setup::little_endian and not setup::no_vectorize)
+        if HTTPVO_CXX17_CONSTEXPR (setup::little_endian and not setup::no_vectorize)
             return end_of_parse(simdv<8>::_load_u32(b));
         else
         {
@@ -92,9 +91,9 @@ namespace httpvo::Implementation
     inline int Parse::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
     {
         // :: assume rem >= 2
-        if constexpr (setup::end_of_line_is_line_feed)
+        if HTTPVO_CXX17_CONSTEXPR (setup::end_of_line_is_line_feed)
             pass(); // TODO
-        if (rem > 3) [[likely]]
+        if HTTPVO_CXX17_LIKELY (rem > 3)
             return not end_of_parse_single_load(b);
          return (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
     }
@@ -118,22 +117,24 @@ namespace httpvo::Implementation
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
         2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
+    template <int X, int Y, simd::VWidth N=1>
+    inline std::size_t is_out_of_range(const u8_t *);
+
+    template<>
+    std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
+    {
+        return static_cast<const u8_t>(*b - 0x21) > 0x5d;
+    }
 
     template <int X, int Y, simd::VWidth N>
     inline std::size_t is_out_of_range(const u8_t * const b)
     {
         static_assert(X == 0x21 and Y == 0x7e);
-        if (const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>()) [[unlikely]]
+        const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>();
+        if (mask)
             return simdv<N>::countzero_bitmask(mask);
         return N;
     };
-
-    template<>
-    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
-    {
-        static_assert(static_cast<i8_t>(0x80) == static_cast<i8_t>(-128));
-        return static_cast<const i8_t>(*b + 0x5f) > -0x23;
-    }
 
     inline bool is_expected_minor_version(const int minor, ReqLine& out)
     {
@@ -146,7 +147,7 @@ namespace httpvo::Implementation
         constexpr u64_t http_slash_one_dot = 0x2e312f5054544800ULL;
         constexpr u64_t rtsp_slash_one_dot = 0x2e312f5053545200ULL;
         constexpr u64_t rtsp_slash_two_dot = 0x2e322f5053545200ULL;
-        if constexpr (std::is_same_v<T, Rtsp_Protocol>)
+        if HTTPVO_CXX17_CONSTEXPR (std::is_same_v<T, Rtsp_Protocol>)
             return (proto == rtsp_slash_two_dot) | (proto == rtsp_slash_one_dot);
         else return proto == http_slash_one_dot;
     }
@@ -156,7 +157,7 @@ namespace httpvo::Implementation
     {
         // :: assume len(b) >= 8
         u64_t LD = 0;
-        if constexpr (setup::little_endian)
+        if HTTPVO_CXX17_CONSTEXPR (setup::little_endian)
             LD = simd::simdv<8>::_load_u64(b);
         else
         {
@@ -189,9 +190,9 @@ namespace httpvo::Implementation
     template<bool ALPHAONLY>
     make_flat inline std::size_t offset_of_non_tchar(const u8_t * const b)
     {
-        if constexpr (not setup::no_vectorize)
+        if HTTPVO_CXX17_CONSTEXPR (not setup::no_vectorize)
         {
-            if (const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>()) [[likely]] // fast pre-check
+            if HTTPVO_CXX17_LIKELY (const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>()) // fast pre-check
                 return _offset_of_non_tchar_mask(b, mask);
             return 8;
         }
@@ -201,7 +202,7 @@ namespace httpvo::Implementation
     template<bool ALPHAONLY>
     make_flat inline std::size_t find_non_tchar(const u8_t * const b, const std::size_t len)
     {
-        if (setup::optimize_for_most_case or (len < 8))
+        if (setup::optimize_for_most_case or len < 8)
             return _offset_of_non_tchar(b, 0, len);
         const u8_t * const stop = b + (len - 8);
         for (const u8_t *p = b; p < stop; p += 8)
@@ -221,7 +222,7 @@ namespace httpvo::Implementation
 
     inline std::size_t offset_of_bad_char_in_value(const u8_t *const b)
     {
-        if constexpr (setup::no_vectorize)
+        if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _offset_of_bad_char_in_value(b, 0, 8);
         if (const mask_t offset = simdv<8>(b).is_not_print_char())
             return simdv<8>::countzero_bitmask(offset);
@@ -235,7 +236,8 @@ namespace httpvo::Implementation
         const u8_t * const stop = b + (len - 8);
         for (const u8_t *p = b + i; p < stop; p += 8)
         {
-            if (const std::size_t offset = offset_of_bad_char_in_value(p); offset < 8)
+            const std::size_t offset = offset_of_bad_char_in_value(p);
+            if HTTPVO_CXX17_UNLIKELY (offset < 8)
                 return size(p, b) + offset;
         }
         return offset_of_bad_char_in_value(stop) + (len - 8);
@@ -246,36 +248,37 @@ namespace httpvo::Implementation
     {
         constexpr mask_t ALL_WHITESPACE = bits::mask_fill<mask_t>(simd::mask_width<N>(), simdv<N>::bitpos);
         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
-        if (mask != ALL_WHITESPACE) [[likely]]
-                return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
+        if HTTPVO_CXX17_LIKELY (mask != ALL_WHITESPACE)
+            return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
         return N;
     }
 
     template<simd::VWidth N>
     inline const u8_t * trim_whitespace(const u8_t *b, const u8_t * const end)
     {
-        if (not is_whitespace<u8_t, true>(b[0])) [[likely]]
+        if HTTPVO_CXX17_LIKELY (not is_whitespace<u8_t, true>(b[0]))
             return b;
-        if constexpr (setup::no_multispace)
+        if HTTPVO_CXX17_CONSTEXPR (setup::no_multispace)
             return end;
         else
         {
-              const u8_t * const stop = end - N;
-              for (; b < stop; b += N)
-              {
-                   const std::size_t offset = first_non_whitespace<N>(b);
-                   if (offset < N) return b + offset;
-               }
-               return stop + first_non_whitespace<N>(stop);
-         }
+            const u8_t * const stop = end - N;
+            for (; b < stop; b += N)
+            {
+                const std::size_t offset = first_non_whitespace<N>(b);
+                if HTTPVO_CXX17_LIKELY (offset < N)
+                    return b + offset;
+            }
+            return stop + first_non_whitespace<N>(stop);
+        }
     }
 
     template<>
     inline const u8_t * trim_whitespace<1>(const u8_t *b, const u8_t * const end)
     {
-        if (is_whitespace<u8_t, true>(b[0])) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (is_whitespace<u8_t, true>(b[0]))
         {
-            if constexpr (setup::no_multispace) return end;
+            if HTTPVO_CXX17_CONSTEXPR (setup::no_multispace) return end;
             else while (++b < end and is_whitespace<u8_t, true>(b[0])) pass();
         }
         return b;
@@ -283,42 +286,49 @@ namespace httpvo::Implementation
 
     inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t len, ReqLine& out)
     {
-        if (const std::size_t offset = find_non_tchar<1>(b, len); offset != len) [[likely]]
-        {
-            if (not is_whitespace<u8_t, true>(b[offset])) [[unlikely]]
-                return status::unexpected_char;
-            return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
-        }
-        return status::expect_bytes;
+        const std::size_t offset = find_non_tchar<1>(b, len);
+        if HTTPVO_CXX17_UNLIKELY (offset == len)
+            return status::expect_bytes;
+        if HTTPVO_CXX17_UNLIKELY ((not  is_whitespace<u8_t, true>(b[offset]) ))
+            return status::unexpected_char;
+        return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
     }
 
     HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
     template <simd::VWidth N>
     inline const u8_t * _find_request_url_end(const u8_t *b, const u8_t * const end)
     {
-        const u8_t * stop = end - N;
+        const u8_t * const stop = end - N;
         for (; b < stop; b += N)
         {
-            if (const std::size_t offset = is_out_of_range<0x21, 0x7e, N>(b); offset < N)
+            const std::size_t offset = is_out_of_range<0x21, 0x7e, N>(b);
+            if (offset < N)
                 return b + offset;
         }
         return stop + is_out_of_range<0x21, 0x7e, N>(stop);
     }
     HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
-
+    
     template <>
     inline const u8_t *_find_request_url_end<1>(const u8_t *b, const u8_t *const end)
     {
-        for (; b < end and not is_out_of_range<0x21, 0x7e, 1>(b); b += 1)
+        for (; b < end - 8; b += 8)
+        {
+            if (is_out_of_range<0x21, 0x7e>(b+0)){return b+0;} if (is_out_of_range<0x21, 0x7e>(b+1)){return b+1;}
+            if (is_out_of_range<0x21, 0x7e>(b+2)){return b+2;} if (is_out_of_range<0x21, 0x7e>(b+3)){return b+3;}
+            if (is_out_of_range<0x21, 0x7e>(b+4)){return b+4;} if (is_out_of_range<0x21, 0x7e>(b+5)){return b+5;}
+            if (is_out_of_range<0x21, 0x7e>(b+6)){return b+6;} if (is_out_of_range<0x21, 0x7e>(b+7)){return b+7;}
+        }
+        for (; b < end and not is_out_of_range<0x21, 0x7e>(b); b += 1)
             pass();
         return b;
     }
 
     inline status::statat_t __status_bad_or_expect(const u8_t * const e, const u8_t * const s)
     {
-        if constexpr (setup::no_multispace)
-            return   {status::bad_whitespace, size(e, s)};
-        else return  {status::expect_bytes,   size(e, s)};
+        if HTTPVO_CXX17_CONSTEXPR (setup::no_multispace)
+            return  {status::bad_whitespace, size(e, s)};
+        else return {status::expect_bytes,   size(e, s)};
     }
    
     template <simd::VWidth N>
@@ -326,14 +336,15 @@ namespace httpvo::Implementation
     {
         const u8_t * const end = (b + offset) + len;
         const u8_t *p = trim_whitespace<N>(b + offset, end);
-        if (p == end) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (p == end)
             return __status_bad_or_expect(p, b);
-        if  (p = _find_request_url_end<N>(p, end); p == end) [[unlikely]]
+        p = _find_request_url_end<N>(p, end);
+        if HTTPVO_CXX17_UNLIKELY (p == end)
             return {status::expect_bytes, size(p, b)};
-        if (not is_whitespace<u8_t, true>(p[0])) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, true>( p[0] ))
             return {status::unexpected_char, size(p, b)};
         p += 1;
-        if (p < end and (p = trim_whitespace<N>(p, end)) == end) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (p < end and (p = trim_whitespace<N>(p, end)) == end)
             return __status_bad_or_expect(p, b);
         return {size(end, p) < (setup::req_line_min_size - 4), out.advance(size(p, b))};
     }
@@ -341,13 +352,13 @@ namespace httpvo::Implementation
     template <simd::VWidth N>
     inline status::statat_t find_request_url_end(const u8_t * const b, const std::size_t offset, const std::size_t len, ReqLine& out)
     {
-        if constexpr (setup::no_vectorize)
+        if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _find_request_url_end_main<1>(b, offset, len, out);
         else
         {
-            if (len > (N - 1)) [[likely]]
+            if HTTPVO_CXX17_LIKELY (len > (N - 1))
                 return _find_request_url_end_main<N>(b, offset, len, out);
-            if (len < 8) [[unlikely]] return _find_request_url_end_main<1>(b, offset, len, out);
+            if HTTPVO_CXX17_UNLIKELY (len < 8) return _find_request_url_end_main<1>(b, offset, len, out);
             return _find_request_url_end_main<8>(b, offset, len, out);
         }
     }
@@ -355,10 +366,10 @@ namespace httpvo::Implementation
     template<simd::VWidth N>
     [[nodiscard]] inline status::statat_t end_of_method_and_url(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
-        if (run_size < setup::req_line_min_size) [[unlikely]]
+        if (run_size < setup::req_line_min_size)
             return status::expect_bytes;
         const status::statat_t end_of_method = find_request_method_end(b, run_size, out);
-        if (end_of_method != 0) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (end_of_method != 0)
             return end_of_method;
         const  std::size_t o = end_of_method.offset + 1;
         return find_request_url_end<N>(b, o, run_size - o, out);
@@ -368,10 +379,10 @@ namespace httpvo::Implementation
     [[nodiscard]] inline status::statat_t Parse::request_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         const status::statat_t end_of_mthurl = end_of_method_and_url<N>(b, run_size, out);
-        if (end_of_mthurl != 0) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (end_of_mthurl != 0)
             return end_of_mthurl;
         const std::size_t o = end_of_mthurl.offset;
-        if ((set_version<Protocol>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8))) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY ((set_version<Protocol>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8)))
             return {status::error, o};
         return {0, o + 10};
     }
@@ -398,7 +409,7 @@ namespace httpvo::Implementation
                 if (not non_tchar)
                     continue;
                 const u8_t *const q = p + simdv<N>::countzero_bitmask(non_tchar);
-                if (q[0] != Character::Colon) [[unlikely]]
+                if HTTPVO_CXX17_UNLIKELY (q[0] != Character::Colon)
                     return status::unexpected_char;
                 out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
                 parsing_value = true;
@@ -407,7 +418,7 @@ namespace httpvo::Implementation
             {
                 const u8_t *const q = p + simdv<N>::countzero_bitmask(control_char);
                 const std::size_t offset = size(q, b);
-                if (is_not_end_of_line(q, run_size - offset)) [[unlikely]]
+                if (is_not_end_of_line(q, run_size - offset))
                     return status::unexpected_char; // TODO: end_of_line function changed
                 return out.set_value_end(offset, b);
             }
@@ -419,16 +430,16 @@ namespace httpvo::Implementation
     [[nodiscard]] inline status Parse::header<0>(u8_t *b, header_view &out, const std::size_t run_size) noexcept
     {
         const std::size_t n_offset = find_non_tchar<false>(b, run_size);
-        if (n_offset == run_size) [[unlikely]]
+        if HTTPVO_CXX17_LIKELY (n_offset == run_size)
             return status::expect_bytes;
-        if (b[n_offset] != Character::Colon) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (b[n_offset] != Character::Colon)
             return status::unexpected_char;
         out.set_name_end(n_offset, nullptr);
 
         const size_t v_offset = find_bad_char_in_value(b, n_offset, run_size);
         if (v_offset == run_size) [[unlikely]]
             return status::expect_bytes;
-        if (is_not_end_of_line(b + v_offset, run_size - v_offset)) [[unlikely]]
+        if HTTPVO_CXX17_UNLIKELY (is_not_end_of_line(b + v_offset, run_size - v_offset))
             return status::unexpected_char;
         return out.set_value_end(v_offset, reinterpret_cast<const u8_t *>(b));
     }
