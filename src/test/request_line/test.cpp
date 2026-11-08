@@ -8,10 +8,11 @@ int main(void)
     httpvo::Implementation::Parse parser;
     httpvo::ReqLine req{0};
 
+    std::cout << (int)httpvo::setup::no_multispace << std::endl;
     {
-        alignas(8) char request_line[] = "GET . HTTP/1.1\r\n";
+        alignas(8) char request_line[] = "GET  . HTTP/1.1\r\n";
         std::size_t len = std::strlen(request_line);
-        auto status = parser.request_line<32>(reinterpret_cast<uint8_t *>(request_line), len, req);
+        auto status = parser.request_line<8>(reinterpret_cast<uint8_t *>(request_line), len, req);
         if (status != 0)
         {
             std::cout << status.stat << ' ' << status.offset << std::endl;

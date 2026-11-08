@@ -27,6 +27,19 @@ namespace httpvo::simd
      template <class T>
      using is_simd_v = IS_SIMD_IMPL_SET<T, SIMD_SET>;
 
+     template<VWidth N>
+     constexpr VWidth mask_width(void)
+     {
+          static_assert(N and bits::is_power_of_two(N));
+          switch (N)
+          {
+          case 8:  return 63;
+          case 16: return 15;
+          case 32: return 31;
+          default: return 0;
+          }
+     }
+
      template<>
      struct simdv<8>
      {
@@ -38,7 +51,7 @@ namespace httpvo::simd
           static constexpr int bitpos = 8;
          
           v64_t v;
-          
+          constexpr simdv(void) = default;
           constexpr simdv(v64_t vv) : v(vv){}
           constexpr simdv(const simdv& vv) : v(vv.v){}
           explicit  simdv(const void * const b)
@@ -67,7 +80,7 @@ namespace httpvo::simd
           inline mask_t to_bitmask(void) const
           {
 #              if HTTPVO_HAVE__ARM_NEON__
-               return vget_lane_u64(vand_u64(vreinterpret_u64_u8(v), vcreate_u64(constant::c80)));
+                    return vget_lane_u64(vand_u64(vreinterpret_u64_u8(v), vcreate_u64(constant::c80)));
 #              endif
                return v;
           }
@@ -96,6 +109,17 @@ namespace httpvo::simd
                    return vceq_u8(v, u.v);
 #              endif
                return _cmpzero_u64(v ^ u.v);
+          }
+
+          inline simdv operator==(const int x) const
+          {
+#              if HTTPVO_HAVE__ARM_NEON__
+                    return vceq_u8(v, vdup_n_u8(x));
+#              else
+                    const v64_t u = v ^ splat(x);
+                    return bits::andnot(constant::c80, u | ((u & constant::c7f) + constant::c7f));
+#              endif
+
           }
 
           static inline bool testmask_u64(const void * const b, const mask_t mask_v, const mask_t mask_z)
@@ -192,8 +216,8 @@ namespace httpvo::simd
           inline v64_t _is_not_hyphen() const
           {
                constexpr v64_t HYPHEN_NORM = splat(0x2d);
-               const v64_t set_all_hypens_to_zero = (v & constant::c7f) ^ HYPHEN_NORM;
-               return set_all_hypens_to_zero + constant::c7f; // extract zero lanes
+               const v64_t set_all_hyphens_to_zero = (v & constant::c7f) ^ HYPHEN_NORM;
+               return set_all_hyphens_to_zero + constant::c7f; // extract zero lanes
           }
 
           inline v64_t is_not_hyphen() const
@@ -244,7 +268,7 @@ namespace httpvo::simd
                     const v64_t not_print = vorr_u8(vclt_u8(v, vcreate_u8(constant::c20)), vceq_u8(v, vcreate_u8(constant::c7f)));
                     if constexpr (INCLUDE_TAB)
                          return vorr_u8(not_print, vceq_u8(v, vcreate_u8(constant::c09)));
-                    else not_print;
+                    else return not_print;
 #              else
                     const v64_t v_no_overflow = v & constant::c7f;
                     if constexpr (INCLUDE_TAB)

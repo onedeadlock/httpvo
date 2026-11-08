@@ -41,11 +41,12 @@ namespace httpvo::bits
     template <typename T>
     constexpr T mask_fill(T width, T splat)
     {
+        static_assert(std::is_integral_v<T> and not std::is_signed_v<T>);
         if (setup::debug)
-            assert(is_power_of_two(width) and (splat > 0 and splat < 9) and is_power_of_two(splat));
+            assert(is_power_of_two(width) and is_power_of_two(splat) and (splat - 9) == 0);
         constexpr u8_t bit_tab[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
         const T mask =  static_cast<T>((bit_tab[splat - 1] * constant::c01));
-        const T fill = (static_cast<T>(1U) << width) - 1;
+        const T fill = static_cast<T>((1ULL << width) - 1);
         return fill & mask;
     }
 

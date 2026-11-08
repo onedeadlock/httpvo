@@ -88,11 +88,14 @@
 #    define HTTPVO_SUPPORT_FULL_TCHAR 1
 #endif
 
-#ifndef HTTPVO_STRICT_HTTP
+#ifdef HTTPVO_STRICT_PARSER
+#    undef  HTTPVO_NO_LEADING_WSP
+#    undef  HTTPVO_NO_MULTI_WSP
+#    undef  HTTPVO_ALLOW_EOL_AS_LINEFEED
 #    define HTTPVO_STRICT_HTTP    1
-#    define HTTPVO_STRICT_DELIM   1
 #    define HTTPVO_NO_LEADING_WSP 1
 #    define HTTPVO_NO_MULTI_WSP   1
+#    define HTTPVO_ALLOW_EOL_AS_LINEFEED 0
 #endif
 
 #ifndef HTTPVO_STRICT_DELIM
@@ -111,8 +114,12 @@
 #    define HTTPVO_NO_LEADING_WSP 0
 #endif
 
-#ifndef HTTPVO_NO_COPY_TRAILS
-#    define HTTPVO_NO_COPY_TRAILS 0
+#ifndef HTTPVO_ALLOW_EOL_AS_LINEFEED
+#    define HTTPVO_ALLOW_EOL_AS_LINEFEED 0
+#endif
+
+#ifndef HTTPVO_PRIOTIZE_HTAB
+#    define HTTPVO_PRIOTIZE_HTAB 0
 #endif
 
 #if 0
@@ -203,18 +210,21 @@ namespace httpvo
         static constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
         static constexpr bool no_leading_space  = HTTPVO_NO_LEADING_WSP;
         static constexpr bool no_vectorize      = HTTPVO_NO_VECTORIZE;
-        static constexpr bool end_of_line_is_line_feed = true; // TODO
+        static constexpr bool end_of_line_is_line_feed = HTTPVO_ALLOW_EOL_AS_LINEFEED;
         static constexpr bool optimize_for_most_case  = HTTPVO_OPTIMIZE_FOR_MOST_CASE;
-        static constexpr bool priotize_horizontal_tab = false; // TODO
+        static constexpr bool priotize_horizontal_tab = HTTPVO_PRIOTIZE_HTAB;
 
          constexpr u8_t req_line_min_size = 14;
          constexpr u8_t hd_line_min_size  = 5;
      }
 }
 #undef HTTPVO_DEBUG
+#undef HTTPVO_LITTLE_ENDIAN
 #undef HTTPVO_NO_MULTI_WSP
 #undef HTTPVO_LITTLE_ENDIAN
 #undef HTTPVO_NO_LEADING_WSP
 #undef HTTPVO_NO_VECTORIZE
 #undef HTTPVO_OPTIMIZE_FOR_MOST_CASE
+#undef HTTPVO_ALLOW_EOL_AS_LINEFEED
+#undef HTTPVO_PRIOTIZE_HTAB
 #endif // HTTPVO_DEFINITION_HPP
