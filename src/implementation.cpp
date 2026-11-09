@@ -19,7 +19,7 @@ namespace httpvo::Implementation
     template<typename T, bool SPCONLY>
     inline T is_whitespace(const T& c)
     {
-        static_assert(std::is_integral<T>() or simd::is_simd_v<T>());
+        static_assert(std::is_integral<T>() or simd::is_simd<T>());
         if HTTPVO_CXX17_CONSTEXPR (SPCONLY) return c == Character::Space;
         else return (c == Character::Space) | (c == Character::HorizontalTab);
     }

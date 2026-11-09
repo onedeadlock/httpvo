@@ -16,8 +16,18 @@ namespace httpvo::simd
      using SIMD_SET = SIMD_IMPL_SET<simdv<8>, simdv<16>, simdv<32>>;
 
      template <class T>
-     using REMOVE_CVREF = std::remove_cv_t<std::remove_reference_t<T>>;
+     using REMOVE_CVREF = typename std::remove_cv<std::remove_reference<T>::type>::type;
 
+     template <bool...>
+     struct IS_SIMD;
+
+     template <class T, class Ts = void>
+     struct V;
+
+     template <class T, class... Ts>
+     struct V<T, SIMD_IMPL_SET<Ts...>> 
+          : std::integral_constant<bool, std::is_same<IS_SIMD<std::is_same<Ts>::value..., false>, IS_SIMD<false...>>> {};
+     
      template <class T, class Ts>
      struct IS_SIMD_IMPL_SET;
 
@@ -25,7 +35,7 @@ namespace httpvo::simd
      struct IS_SIMD_IMPL_SET<T, SIMD_IMPL_SET<Ts...>> : std::integral_constant<bool, (std::is_same_v<REMOVE_CVREF<T>, Ts> || ...)>{};
 
      template <class T>
-     using is_simd_v = IS_SIMD_IMPL_SET<T, SIMD_SET>;
+     using is_simd = IS_SIMD_IMPL_SET<T, SIMD_SET>;
 
      template<VWidth N>
      constexpr VWidth mask_width(void)
@@ -44,7 +54,7 @@ namespace httpvo::simd
     constexpr T mask_fill(T width, T splat)
     {
         static_assert(std::is_integral_v<T> and not std::is_signed_v<T>);
-        if HHTPVO_CXX17_CONSTEXPR (setup::debug)
+        if HTTPVO_CXX17_CONSTEXPR (setup::debug)
             assert(is_power_of_two(width) and is_power_of_two(splat) and (splat - 9) == 0);
         constexpr u8_t bit_tab[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
         const T mask = static_cast<T>((bit_tab[splat - 1] * constant::c01));
@@ -63,7 +73,7 @@ namespace httpvo::simd
           static constexpr int bitpos = 8;
          
           v64_t v;
-          constexpr simdv(void) = default;
+          simdv(void) = default;
           constexpr simdv(v64_t vv) : v(vv){}
           constexpr simdv(const simdv& vv) : v(vv.v){}
           explicit  simdv(const void * const b)
@@ -165,7 +175,7 @@ namespace httpvo::simd
                     return vcgt_u8(v, vdup_n_u8(a));
 #              endif
                static_assert(A < 0x7f);
-               static constexpr u64_t a = _dup(0x7f - A);
+               static constexpr u64_t a = splat(0x7f - A);
                return (v | (a + (v & constant::c7f))) & constant::c80;
           }
 
@@ -278,12 +288,12 @@ namespace httpvo::simd
           {
 #              if HTTPVO_HAVE__ARM_NEON__
                     const v64_t not_print = vorr_u8(vclt_u8(v, vcreate_u8(constant::c20)), vceq_u8(v, vcreate_u8(constant::c7f)));
-                    if constexpr (INCLUDE_TAB)
+                    if HTTPVO_CXX17_CONSTEXPR (INCLUDE_TAB)
                          return vorr_u8(not_print, vceq_u8(v, vcreate_u8(constant::c09)));
                     else return not_print;
 #              else
                     const v64_t v_no_overflow = v & constant::c7f;
-                    if constexpr (INCLUDE_TAB)
+                    if HTTPVO_CXX17_CONSTEXPR (INCLUDE_TAB)
                          return _not_printable_tab(v_no_overflow)    & bits::andnot(constant::c80, v);
                     else return _not_printable_no_tab(v_no_overflow) & bits::andnot(constant::c80, v);
 #              endif
