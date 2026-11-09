@@ -11,56 +11,45 @@ namespace httpvo::simd
      struct simdv;
 
      template <class... Ts>
-     struct SIMD_IMPL_SET{};
-
-     using SIMD_SET = SIMD_IMPL_SET<simdv<8>, simdv<16>, simdv<32>>;
-
-     template <class T>
-     using REMOVE_CVREF = typename std::remove_cv<std::remove_reference<T>::type>::type;
+     struct SIMD_IMPLEMENTATION_SET{};
 
      template <bool...>
-     struct IS_SIMD;
+     struct BOOL_SET;
 
-     template <class T, class Ts = void>
-     struct V;
+      template <class T, class Ts = void>
+      struct IS_SIMD;
 
-     template <class T, class... Ts>
-     struct V<T, SIMD_IMPL_SET<Ts...>> 
-          : std::integral_constant<bool, std::is_same<IS_SIMD<std::is_same<Ts>::value..., false>, IS_SIMD<false...>>> {};
-     
-     template <class T, class Ts>
-     struct IS_SIMD_IMPL_SET;
-
-     template <class T, class... Ts>
-     struct IS_SIMD_IMPL_SET<T, SIMD_IMPL_SET<Ts...>> : std::integral_constant<bool, (std::is_same_v<REMOVE_CVREF<T>, Ts> || ...)>{};
+     using SIMD_SET = SIMD_IMPLEMENTATION_SET<simdv<8>, simdv<16>, simdv<32>>;
 
      template <class T>
-     using is_simd = IS_SIMD_IMPL_SET<T, SIMD_SET>;
+     using REMOVE_CVREF_T = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
+
+     template <bool... Bs>
+     using ANY_OF_T = std::integral_constant<bool, not std::is_same<BOOL_SET<false, Bs...>, BOOL_SET<Bs..., false>>::value>;
+
+     template <class T, class... Ts>
+     struct IS_SIMD <T, SIMD_IMPLEMENTATION_SET<Ts...>> : ANY_OF_T<std::is_same<REMOVE_CVREF_T<T>, Ts>::value...>{};
+
+     template <class T>
+     using is_simd = IS_SIMD<T, SIMD_SET>;
+
+     static constexpr u8_t width_select[]{0, 63, 15, 0, 31};
+     static constexpr u8_t mask_select[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
 
      template<VWidth N>
      constexpr VWidth mask_width(void)
      {
           static_assert(N and bits::is_power_of_two(N));
-          switch (N)
-          {
-          case 8:  return 63;
-          case 16: return 15;
-          case 32: return 31;
-          default: return 0;
-          }
+          return static_cast<VWidth>(width_select[N >> 3]);
      }
 
-     template <typename T>
-    constexpr T mask_fill(T width, T splat)
-    {
-        static_assert(std::is_integral_v<T> and not std::is_signed_v<T>);
-        if HTTPVO_CXX17_CONSTEXPR (setup::debug)
-            assert(is_power_of_two(width) and is_power_of_two(splat) and (splat - 9) == 0);
-        constexpr u8_t bit_tab[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
-        const T mask = static_cast<T>((bit_tab[splat - 1] * constant::c01));
-        const T fill = static_cast<T>((1ULL << width) - 1);
-        return fill & mask;
-    }
+     template <typename T, T width, T splat>
+     constexpr T mask_fill(void)
+     {
+          static_assert(std::is_integral<T>() and not std::is_signed<T>());
+          // fill & mask
+          return static_cast<T>((1ULL << width) - 1) & static_cast<T>(mask_select[splat - 1] * constant::c01);
+     }
 
      template<>
      struct simdv<8>
@@ -254,7 +243,7 @@ namespace httpvo::simd
           template<int ALPHAONLY>
           inline mask_t fast_not_tchar(void) const
           {
-               if constexpr (ALPHAONLY)
+               if HTTPVO_CXX17_CONSTEXPR (ALPHAONLY)
                     return is_not_letter();
                else
                {

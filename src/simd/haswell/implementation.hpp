@@ -68,6 +68,18 @@ namespace httpvo::simd
             return _mm256_or_si256(lo, _mm256_set1_epi8(x));
         }
 
+         TARGET("avx2")
+        inline simdv operator|(const simdv& x) const
+        {
+            return _mm256_or_si256(lo, x.lo);
+        }
+
+        TARGET("avx2")
+        inline simdv operator^(const simdv& x) const
+        {
+            return _mm256_xor_si256(lo, x.lo);
+        }
+
         TARGET("avx2")
         inline simdv operator^(const int x) const
         {

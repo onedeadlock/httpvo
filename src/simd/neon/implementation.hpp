@@ -11,12 +11,12 @@ namespace httpvo::simd
 
         uint8x16_t lo;
 
-        simdv(simdv& v)     : lo{v.lo}{}
-        simdv(simdv&& v)    : lo{v.lo}{}
-        simdv(uint8x16_t u) : lo{u}{}
+        simdv(void) = default;
+        simdv(const simdv& v)     : lo{v.lo}{}
+        simdv(const uint8x16_t u) : lo{u}{}
         explicit simdv(const void *b)
         {
-            lo = vld1q_u8(reinterpret_cast<uint8x16_t *>(b));
+            lo = vld1q_u8(reinterpret_cast<const uint8x16_t *>(b));
         }
 
         TARGET("neon")
@@ -53,15 +53,9 @@ namespace httpvo::simd
         }
 
         TARGET("neon")
-        inline simdv operator&(const simdv &v) const
+        inline simdv operator&(const int x) const
         {
-            return vandq_u8(lo, v.lo);
-        }
-
-        TARGET("neon")
-        inline mask_t operator&(const mask_t m) const
-        {
-            return to_bitmask() & m;
+            return vandq_u8(lo, vdupq_n_u8(x));
         }
 
         TARGET("neon")
@@ -83,19 +77,19 @@ namespace httpvo::simd
         }
 
         TARGET("neon")
-        inline simdv operator==(const simdv &v) const
+        inline simdv operator==(const int x) const
         {
-            return vceqq_u8(lo, v.lo);
+            return vceqq_u8(lo, vdupq_n_u8(x));
         }
 
         TARGET("neon")
-        inline simdv operator<=(const simdv &v) const
+        inline simdv operator<=(const int x) const
         {
-            return vcleq_u8(lo, v.lo);
+            return vcleq_u8(lo, vdupq_n_u8(x));
         }
 
         TARGET("neon")
-        inline simdv operator>(const simdv &v) const
+        inline simdv operator>(const simdv& v) const
         {
             return vcgtq_u8(lo, v.lo);
         }

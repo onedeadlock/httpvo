@@ -2,6 +2,7 @@
 #include <iostream>
 
 #if 0
+// c++17 - ...
 template <class... Ts>
 struct TYPE_SET {};
 
@@ -21,9 +22,7 @@ using is_simd_v = IS_SIMD_V<T, SET>;
 #endif
 
 template <class... Ts>
-struct SIMD_IMPL_SET
-{
-};
+struct SIMD_IMPL_SET;
 
 using SIMD_SET = SIMD_IMPL_SET<int, char, float>;
 
@@ -31,10 +30,10 @@ template <class T>
 using REMOVE_CVREF = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
 
 template<bool...>
-struct PACK {};
+struct PACK;
 
 template <bool... Bs>
-struct IS_SAME : std::integral_constant<bool, !std::is_same<PACK<false, Bs...>, PACK<Bs..., false>>::value>{};
+using IS_SAME = std::integral_constant<bool, not std::is_same<PACK<false, Bs...>, PACK<Bs..., false>>()>;
 
 template <class T, class Ts = void>
 struct V;
@@ -47,12 +46,9 @@ using IS_SAME_TYPE = V<T, SIMD_SET>;
 
 int main(void)
 {
-    std::cout << IS_SAME_TYPE<int>() << std::cout;
-    #if 0
-    std::cout << (is_simd_v<int>()) << std::endl; // true
-    std::cout << (is_simd_v<char>()) << std::endl; // true
-    std::cout << (is_simd_v<wchar_t>()) << std::endl; // true
-    std::cout << (is_simd_v<float>()) << std::endl; // false
-    #endif
-    return 9;
+    std::cout << IS_SAME_TYPE<int>() << std::endl;
+    std::cout << IS_SAME_TYPE<char>() << std::endl;
+    std::cout << IS_SAME_TYPE<float>() << std::endl;
+    std::cout << (IS_SAME_TYPE<double>() == 0) << std::endl;;
+    return 0;
 }

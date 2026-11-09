@@ -23,7 +23,7 @@ static void BM_speed_test_1(benchmark::State& state)
     }
 }
 
-BENCHMARK(BM_speed_test_1)->Repetitions(10)->Iterations(64900)->ReportAggregatesOnly()->MinWarmUpTime(5);
+BENCHMARK(BM_speed_test_1)->Repetitions(10)->Iterations(64900)->ReportAggregatesOnly()->MinWarmUpTime(10);
 
 int main(int argc, char **argv)
 {

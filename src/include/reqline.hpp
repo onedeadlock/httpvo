@@ -17,8 +17,8 @@ namespace httpvo
 
         inline std::size_t advance(const std::size_t len)
         {
-             if constexpr (setup::debug)
-                pass();
+             if HTTPVO_CXX17_CONSTEXPR (setup::debug)
+                assert(1); // TODO
             req[i++] += len;
             return len;
         }

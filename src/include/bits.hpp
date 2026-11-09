@@ -33,8 +33,6 @@ namespace httpvo::bits
     __attribute__((const))
     inline constexpr u64_t align(const u64_t x, const u64_t n)
     {
-        if HTTPVO_CXX17_CONSTEXPR (setup::debug)
-            assert(n & (n - 1));
         return x & ~(n - 1);
     }
 

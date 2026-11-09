@@ -68,6 +68,18 @@ namespace httpvo::simd
         }
 
         TARGET("sse4")
+        inline simdv operator|(const simdv& x) const
+        {
+            return _mm_or_si128(lo, x.lo);
+        }
+
+        TARGET("sse4")
+        inline simdv operator^(const simdv& x) const
+        {
+            return _mm_xor_si128(lo, x.lo);
+        }
+
+        TARGET("sse4")
         inline simdv operator^(const int x) const
         {
             return _mm_xor_si128(lo, _mm_set1_epi8(x));

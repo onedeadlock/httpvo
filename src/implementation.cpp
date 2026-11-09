@@ -147,9 +147,9 @@ namespace httpvo::Implementation
         constexpr u64_t http_slash_one_dot = 0x2e312f5054544800ULL;
         constexpr u64_t rtsp_slash_one_dot = 0x2e312f5053545200ULL;
         constexpr u64_t rtsp_slash_two_dot = 0x2e322f5053545200ULL;
-        if HTTPVO_CXX17_CONSTEXPR (std::is_same_v<T, Rtsp_Protocol>)
+        if HTTPVO_CXX17_CONSTEXPR (std::is_same<T, Rtsp_Protocol>())
             return (proto == rtsp_slash_two_dot) | (proto == rtsp_slash_one_dot);
-        else return proto == http_slash_one_dot;
+        return proto == http_slash_one_dot;
     }
 
     template<class T>
@@ -252,7 +252,8 @@ namespace httpvo::Implementation
     template<simd::VWidth N>
     inline std::size_t first_non_whitespace(const u8_t * const b)
     {
-        constexpr mask_t ALL_WHITESPACE = simd::mask_fill<mask_t>(simd::mask_width<N>(), simdv<N>::bitpos);
+        constexpr mask_t ALL_WHITESPACE = simd::mask_fill<mask_t, simd::mask_width<N>(), simdv<N>::bitpos>();
+        static_assert(ALL_WHITESPACE != 0);
         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
         if HTTPVO_CXX17_LIKELY (mask != ALL_WHITESPACE)
             return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
@@ -364,7 +365,7 @@ namespace httpvo::Implementation
         {
             if HTTPVO_CXX17_LIKELY (len > (N - 1))
                 return _find_request_url_end_main<N>(b, offset, len, out);
-            if HTTPVO_CXX17_UNLIKELY (len < 8) 
+            if (len < 8) 
                 return _find_request_url_end_main<1>(b, offset, len, out);
             return _find_request_url_end_main<8>(b, offset, len, out);
         }
