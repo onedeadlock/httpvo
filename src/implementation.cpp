@@ -63,7 +63,7 @@ namespace httpvo::Implementation
 
         if HTTPVO_CXX17_CONSTEXPR (setup::neon)
            return (v & 0xf).shuf_table(TCHAR_LO).andeqz((v >> 4).shuf_table(TCHAR_HI));
-        // skipped first 'v & 0xf' since v >= 0x80 falls to 0 and that is what we need
+        // skipped first 'v & 0xf' since v >= 0x80 falls to 0 and that is what is needed
         return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
      }
 
@@ -131,7 +131,7 @@ namespace httpvo::Implementation
     {
         static_assert(X == 0x21 and Y == 0x7e);
         const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>();
-        if (mask)
+        if HTTPVO_CXX17_UNLIKELY (mask)
             return simdv<N>::countzero_bitmask(mask);
         return N;
     };
@@ -182,8 +182,11 @@ namespace httpvo::Implementation
     inline std::size_t _offset_of_non_tchar_mask(const u8_t * const b, const mask_t mask)
     {
         for (mask_t m = mask; m; m = bits::clear_least_set_bit(m))
-            if (const std::size_t offset = simdv<8>::countzero_bitmask(m); TCHAR_LUT[b[offset]] != 3)
+        {
+            const std::size_t offset = simdv<8>::countzero_bitmask(m);
+            if (TCHAR_LUT[b[offset]] != 3)
                 return offset;
+        }
         return 8;
     }
     
@@ -192,7 +195,8 @@ namespace httpvo::Implementation
     {
         if HTTPVO_CXX17_CONSTEXPR (not setup::no_vectorize)
         {
-            if HTTPVO_CXX17_LIKELY (const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>()) // fast pre-check
+            const mask_t mask = simdv<8>(b).fast_not_tchar<ALPHAONLY>();
+            if HTTPVO_CXX17_LIKELY (mask) // fast pre-check
                 return _offset_of_non_tchar_mask(b, mask);
             return 8;
         }
@@ -207,7 +211,8 @@ namespace httpvo::Implementation
         const u8_t * const stop = b + (len - 8);
         for (const u8_t *p = b; p < stop; p += 8)
         {
-            if (const std::size_t offset = offset_of_non_tchar<ALPHAONLY>(p); offset < 8)
+            const std::size_t offset = offset_of_non_tchar<ALPHAONLY>(p);
+            if (offset < 8)
                 return offset + size(p, b);
         }
         return offset_of_non_tchar<ALPHAONLY>(stop) + (len - 8);
@@ -224,7 +229,8 @@ namespace httpvo::Implementation
     {
         if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _offset_of_bad_char_in_value(b, 0, 8);
-        if (const mask_t offset = simdv<8>(b).is_not_print_char())
+        const mask_t offset = simdv<8>(b).is_not_print_char();
+        if (offset)
             return simdv<8>::countzero_bitmask(offset);
         return 8;
     }
@@ -246,7 +252,7 @@ namespace httpvo::Implementation
     template<simd::VWidth N>
     inline std::size_t first_non_whitespace(const u8_t * const b)
     {
-        constexpr mask_t ALL_WHITESPACE = bits::mask_fill<mask_t>(simd::mask_width<N>(), simdv<N>::bitpos);
+        constexpr mask_t ALL_WHITESPACE = simd::mask_fill<mask_t>(simd::mask_width<N>(), simdv<N>::bitpos);
         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
         if HTTPVO_CXX17_LIKELY (mask != ALL_WHITESPACE)
             return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
@@ -289,7 +295,7 @@ namespace httpvo::Implementation
         const std::size_t offset = find_non_tchar<1>(b, len);
         if HTTPVO_CXX17_UNLIKELY (offset == len)
             return status::expect_bytes;
-        if HTTPVO_CXX17_UNLIKELY ((not  is_whitespace<u8_t, true>(b[offset]) ))
+        if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, true>(b[offset]))
             return status::unexpected_char;
         return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
     }
@@ -332,7 +338,7 @@ namespace httpvo::Implementation
     }
    
     template <simd::VWidth N>
-    status::statat_t _find_request_url_end_main(const u8_t *b, const std::size_t offset, const std::size_t len, ReqLine& out)
+    inline status::statat_t _find_request_url_end_main(const u8_t *b, const std::size_t offset, const std::size_t len, ReqLine& out)
     {
         const u8_t * const end = (b + offset) + len;
         const u8_t *p = trim_whitespace<N>(b + offset, end);
@@ -358,7 +364,8 @@ namespace httpvo::Implementation
         {
             if HTTPVO_CXX17_LIKELY (len > (N - 1))
                 return _find_request_url_end_main<N>(b, offset, len, out);
-            if HTTPVO_CXX17_UNLIKELY (len < 8) return _find_request_url_end_main<1>(b, offset, len, out);
+            if HTTPVO_CXX17_UNLIKELY (len < 8) 
+                return _find_request_url_end_main<1>(b, offset, len, out);
             return _find_request_url_end_main<8>(b, offset, len, out);
         }
     }

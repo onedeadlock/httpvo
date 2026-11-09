@@ -40,6 +40,18 @@ namespace httpvo::simd
           }
      }
 
+     template <typename T>
+    constexpr T mask_fill(T width, T splat)
+    {
+        static_assert(std::is_integral_v<T> and not std::is_signed_v<T>);
+        if HHTPVO_CXX17_CONSTEXPR (setup::debug)
+            assert(is_power_of_two(width) and is_power_of_two(splat) and (splat - 9) == 0);
+        constexpr u8_t bit_tab[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
+        const T mask = static_cast<T>((bit_tab[splat - 1] * constant::c01));
+        const T fill = static_cast<T>((1ULL << width) - 1);
+        return fill & mask;
+    }
+
      template<>
      struct simdv<8>
      {

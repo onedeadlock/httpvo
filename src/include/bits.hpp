@@ -33,21 +33,9 @@ namespace httpvo::bits
     __attribute__((const))
     inline constexpr u64_t align(const u64_t x, const u64_t n)
     {
-        if constexpr (setup::debug)
+        if HTTPVO_CXX17_CONSTEXPR (setup::debug)
             assert(n & (n - 1));
         return x & ~(n - 1);
-    }
-
-    template <typename T>
-    constexpr T mask_fill(T width, T splat)
-    {
-        static_assert(std::is_integral_v<T> and not std::is_signed_v<T>);
-        if (setup::debug)
-            assert(is_power_of_two(width) and is_power_of_two(splat) and (splat - 9) == 0);
-        constexpr u8_t bit_tab[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
-        const T mask =  static_cast<T>((bit_tab[splat - 1] * constant::c01));
-        const T fill = static_cast<T>((1ULL << width) - 1);
-        return fill & mask;
     }
 
     inline u64_t ltrim(u64_t x)
@@ -92,7 +80,7 @@ namespace httpvo::bits
 
     u64_t tzcnt(u64_t x)
     {
-        if constexpr (setup::debug)
+        if HTTPVO_CXX17_CONSTEXPR (setup::debug)
             assert(x > 0);
 #       if HTTPVO_GNUC_COMPARTIBLE__
             return __builtin_ctzll(x);
