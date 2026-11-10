@@ -7,7 +7,6 @@ namespace httpvo::simd
      constexpr int MINWIDTH = std::numeric_limits<INT>::digits / 8; // minimum supported width
      constexpr int MAXWIDTH = 32; // maximum supported width
 
-     
      template <int N=MINWIDTH>
      struct simdv;
 
