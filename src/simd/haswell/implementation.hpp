@@ -8,6 +8,7 @@ namespace httpvo::simd
     struct simdv<32>
     {
         static constexpr int bitpos = 1;
+        static constexpr int N = 32;
 
         __m256i lo;
 
@@ -26,14 +27,14 @@ namespace httpvo::simd
         }
 
         TARGET("avx2")
-        inline u64_t to_bitmask(void) const
+        inline mask_t to_bitmask(void) const
         {
             return _mm256_movemask_epi8(lo);
         }
 
-        static inline u64_t countzero_bitmask(const mask_t m)
+        static inline int countzero_bitmask(const mask_t m)
         {
-               return bits::tzcnt(m);
+               return bits::tzcnt<u32_t>(static_cast<const u32_t>(m));
         }
 
         template<u8_t a=0, u8_t b=0>

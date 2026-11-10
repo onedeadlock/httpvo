@@ -4,26 +4,26 @@
 
 namespace httpvo::constant
 {
-    constexpr u64_t c01 = 0x0101010101010101ULL;
-    constexpr u64_t c09 = 0x0909090909090909ULL;
-    constexpr u64_t c0a = 0x0a0a0a0a0a0a0a0aULL;
-    constexpr u64_t c0d = 0x0d0d0d0d0d0d0d0dULL;
-    constexpr u64_t c20 = 0x2020202020202020ULL;
-    constexpr u64_t c30 = 0x3030303030303030ULL;
-    constexpr u64_t c3a = 0x3a3a3a3a3a3a3a3aULL;
-    constexpr u64_t c7f = 0x7f7f7f7f7f7f7f7fULL;
-    constexpr u64_t c9f = 0x9f9f9f9f9f9f9f9fULL;
-    constexpr u64_t ca0 = 0xa0a0a0a0a0a0a0a0ULL;
-    constexpr u64_t cdf = 0xdfdfdfdfdfdfdfdfULL;
-    constexpr u64_t cff = 0xffffffffffffffffULL;
-    constexpr u64_t c80 = 0x8080808080808080ULL;
+    constexpr INT c01 = INT(0x0101010101010101ULL);
+    constexpr INT c09 = INT(0x0909090909090909ULL);
+    constexpr INT c0a = INT(0x0a0a0a0a0a0a0a0aULL);
+    constexpr INT c0d = INT(0x0d0d0d0d0d0d0d0dULL);
+    constexpr INT c20 = INT(0x2020202020202020ULL);
+    constexpr INT c30 = INT(0x3030303030303030ULL);
+    constexpr INT c3a = INT(0x3a3a3a3a3a3a3a3aULL);
+    constexpr INT c7f = INT(0x7f7f7f7f7f7f7f7fULL);
+    constexpr INT c9f = INT(0x9f9f9f9f9f9f9f9fULL);
+    constexpr INT ca0 = INT(0xa0a0a0a0a0a0a0a0ULL);
+    constexpr INT cdf = INT(0xdfdfdfdfdfdfdfdfULL);
+    constexpr INT cff = INT(0xffffffffffffffffULL);
+    constexpr INT c80 = INT(0x8080808080808080ULL);
 
     constexpr u64_t compress = 0x0002040810204081ULL;
 
     constexpr u32_t DeBruijn32_const = 0x077cb531U;
     constexpr u64_t DeBruijn64_const = 0x03f79d71b4cb0a89ULL;
 
-    constexpr u8_t  DeBruijn32_seq[64]{
+    constexpr u8_t  DeBruijn32_seq[32]{
         0,  1,  28, 2,  29, 14, 24, 3,
         30, 22, 20, 15, 25, 17, 4,  8,
         31, 27, 13, 23, 21, 19, 16, 7,

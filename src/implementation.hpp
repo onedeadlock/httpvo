@@ -31,12 +31,12 @@ namespace httpvo::Implementation
     {
     public:
         Parse(void) : at_start_line{0}, end_of_parse_marker{0} {}
-        template <simd::VWidth N, class Protocol>
+        template <int N, class Protocol>
         status::statat_t request_line(const u8_t *,  const std::size_t, ReqLine&) noexcept;
-        template<simd::VWidth N, class Protocol>
+        template<int N, class Protocol>
         status::statat_t response_line(const u8_t *, const std::size_t, ReqLine&) noexcept;
 
-        template<simd::VWidth N>
+        template<int N>
         status header(u8_t *, header_view&, const std::size_t) noexcept;
         private:
         bool at_start_line;

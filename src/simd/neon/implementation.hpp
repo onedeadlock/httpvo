@@ -8,6 +8,7 @@ namespace httpvo::simd
     struct simdv<16>
     {
         static constexpr int bitpos = 4;
+        static constexpr int N = 16;
 
         uint8x16_t lo;
 

@@ -8,6 +8,7 @@ namespace httpvo::simd
     struct simdv<16>
     {
         static constexpr int bitpos = 1;
+        static constexpr int N = 16;
 
         __m128i lo;
 
@@ -19,14 +20,14 @@ namespace httpvo::simd
         }
 
         TARGET("sse4")
-        inline u64_t to_bitmask(void) const
+        inline mask_t to_bitmask(void) const
         {
             return _mm_movemask_epi8(lo);
         }
 
         static inline u64_t countzero_bitmask(const mask_t m)
         {
-               return bits::tzcnt(m);
+               return bits::tzcnt<u32_t>(static_cast<const u32_t>(m));
         }
 
         template<int a=0, int b=0>

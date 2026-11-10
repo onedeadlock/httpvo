@@ -25,7 +25,7 @@
 #    define HTTPVO_ARCH_X64 0
 #endif
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__clang__)
 #    define HTTPVO_HAVE_GNUC __GNUC__
 #else
 #    define HTTPVO_HAVE_GNUC 0
@@ -149,7 +149,7 @@
 #if CXX_VERSION >= 201703L
 #    define HTTPVO_CXX17_LIKELY(...)   (__VA_ARGS__) [[likely]]
 #    define HTTPVO_CXX17_UNLIKELY(...) (__VA_ARGS__) [[unlikely]]
-#elif HTTPVO_GNUC_COMPARTIBLE__
+#elif HTTPVO_GNUC_COMPARTIBLE
 #    define HTTPVO_CXX17_LIKELY(...)   (__builtin_expect((__VA_ARGS__), 1))
 #    define HTTPVO_CXX17_UNLIKELY(...) (__builtin_expect((__VA_ARGS__), 1))
 #else
@@ -163,11 +163,11 @@
 #    define HTTPVO_CXX17_CONSTEXPR
 #endif
 
-#if  HTTPVO_GNUC_COMPARTIBLE
-#    define inline    __attribute__((__always_inline__)) inline
+#if HTTPVO_GNUC_COMPARTIBLE
+#    define inline __attribute__((always_inline, flatten, artificial)) inline
 #    define make_flat __attribute__((flatten))
 #elif HTTPVO_HAVE_MSVC
-#    define inline  __forceinline
+#    define inline __declspec(forceinline flatten) inline
 #    define make_flat 
 #else
 #    define inline inline
@@ -224,35 +224,36 @@ namespace httpvo
     using u32_t  = std::uint32_t;
     using u64_t  = std::uint64_t;
     using mask_t = std::uint64_t;
+    using INT = typename std::conditional<std::numeric_limits<std::size_t>::digits < 64, u32_t, u64_t>::type;
 
     auto pass   = []{};
 
      namespace setup
      {
-        static constexpr u8_t avx_512 = 0;
-        static constexpr u8_t avx_2   = HTTPVO_HAVE__AVX2__;
-        static constexpr u8_t sse_4_2 = HTTPVO_HAVE__SSE4_2__;
-        static constexpr u8_t neon    = HTTPVO_HAVE__ARM_NEON__;
-        static constexpr u8_t int_64  = 1;
+        constexpr u8_t avx_512 = 0;
+        constexpr u8_t avx_2   = HTTPVO_HAVE__AVX2__;
+        constexpr u8_t sse_4_2 = HTTPVO_HAVE__SSE4_2__;
+        constexpr u8_t neon    = HTTPVO_HAVE__ARM_NEON__;
+        constexpr u8_t int_64  = 1;
 
-        static constexpr u8_t arm64  = 0;
-        static constexpr u8_t arm32  = 0;
-        static constexpr u8_t x86_64 = 0;
-        static constexpr bool little_endian = HTTPVO_LITTLE_ENDIAN;
+        constexpr u8_t arm64  = 0;
+        constexpr u8_t arm32  = 0;
+        constexpr u8_t x86_64 = 0;
+        constexpr bool little_endian = HTTPVO_LITTLE_ENDIAN;
 
-        static constexpr u8_t rtsp = 4;
-        static constexpr u8_t http = 8;
+        constexpr u8_t rtsp = 4;
+        constexpr u8_t http = 8;
 
-        static constexpr bool debug             = HTTPVO_DEBUG;
-        static constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
-        static constexpr bool no_leading_space  = HTTPVO_NO_LEADING_WSP;
-        static constexpr bool no_vectorize      = HTTPVO_NO_VECTORIZE;
-        static constexpr bool end_of_line_is_line_feed = HTTPVO_ALLOW_EOL_AS_LINEFEED;
-        static constexpr bool optimize_for_most_case  = HTTPVO_OPTIMIZE_FOR_MOST_CASE;
-        static constexpr bool priotize_horizontal_tab = HTTPVO_PRIOTIZE_HTAB;
+        constexpr bool debug             = HTTPVO_DEBUG;
+        constexpr bool no_multispace     = HTTPVO_NO_MULTI_WSP;
+        constexpr bool no_leading_space  = HTTPVO_NO_LEADING_WSP;
+        constexpr bool no_vectorize      = HTTPVO_NO_VECTORIZE;
+        constexpr bool end_of_line_is_line_feed = HTTPVO_ALLOW_EOL_AS_LINEFEED;
+        constexpr bool optimize_for_most_case  = HTTPVO_OPTIMIZE_FOR_MOST_CASE;
+        constexpr bool priotize_horizontal_tab = HTTPVO_PRIOTIZE_HTAB;
 
-         constexpr u8_t req_line_min_size = 14;
-         constexpr u8_t hd_line_min_size  = 5;
+        constexpr u8_t req_line_min_size = 14;
+        constexpr u8_t hd_line_min_size  = 5;
      }
 }
 #undef HTTPVO_DEBUG
