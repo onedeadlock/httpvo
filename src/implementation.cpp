@@ -230,9 +230,7 @@ namespace httpvo::Implementation
         if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _offset_of_bad_char_in_value(b, 0, 8);
         const mask_t offset = simdv<8>(b).is_not_print_char();
-        if (offset)
-            return simdv<8>::countzero_bitmask(offset);
-        return 8;
+        return simdv<8>::countzero_bitmask(offset);
     }
 
     make_flat inline std::size_t find_bad_char_in_value(const u8_t * const b, const std::size_t i, const std::size_t len)
@@ -255,9 +253,7 @@ namespace httpvo::Implementation
         constexpr mask_t ALL_WHITESPACE = simd::mask_fill<mask_t, simd::mask_width<N>(), simdv<N>::bitpos>();
         static_assert(ALL_WHITESPACE != 0);
         const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
-        if HTTPVO_CXX17_LIKELY (mask != ALL_WHITESPACE)
-            return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
-        return N;
+        return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
     }
 
     template<simd::VWidth N>

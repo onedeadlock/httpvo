@@ -13,40 +13,52 @@
 #    include <arm_neon.h>
 #endif
 
-#ifndef HTTPVO_DEBUG
-#    define HTTPVO_DEBUG 0
+#if 0
+#    define HTTPVO_ARCH_ARM 1
 #else
-#    include <iostream>
+#    define HTTPVO_ARCH_ARM 0
+#endif
+
+#if defined(__x86_64__) || defined(_M_X64)
+#    define HTTPVO_ARCH_X64 1
+#else
+#    define HTTPVO_ARCH_X64 0
 #endif
 
 #if defined(__GNUC__)
-#    define HTTPVO_HAVE_GNUC__ __GNUC__
+#    define HTTPVO_HAVE_GNUC __GNUC__
 #else
-#    define HTTPVO_HAVE_GNUC__ 0
+#    define HTTPVO_HAVE_GNUC 0
 #endif
 
 #if defined(__clang__)
-#    define HTTPVO_HAVE_CLANG__ __clang__
+#    define HTTPVO_HAVE_CLANG __clang__
 #else
-#    define HTTPVO_HAVE_CLANG__ 0
+#    define HTTPVO_HAVE_CLANG 0
 #endif
 
-#if HTTPVO_HAVE_CLANG__ || HTTPVO_HAVE_GNUC__
-#    define HTTPVO_GNUC_COMPARTIBLE__ 1
+#if HTTPVO_HAVE_CLANG || HTTPVO_HAVE_GNUC
+#    define HTTPVO_GNUC_COMPARTIBLE 1
 #else
-#    define HTTPVO_GNUC_COMPARTIBLE__ 0
+#    define HTTPVO_GNUC_COMPARTIBLE 0
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#    define HTTPVO_HAVE_MSVC__ _MSC_VER
+#    define HTTPVO_HAVE_MSVC _MSC_VER
 #else
-#   define HTTPVO_HAVE_MSVC__ 0
+#   define HTTPVO_HAVE_MSVC 0
+#endif
+
+#if HTTPVO_HAVE_MSVC
+#   include <intrin.h>
 #endif
 
 #if defined(__cplusplus)
 #    define CXX_VERSION __cplusplus
-#elif HTTPVO_HAVE_MSVC__
+#elif HTTPVO_HAVE_MSVC
 #    define CXX_VERSION _MSVC_LANG
+#else 
+#    define CXX_VERSION 0
 #endif
 
 #if defined(__AVX2__)
@@ -77,6 +89,12 @@
 #    define HTTPVO_HAVE__ARM_NEON__ 1
 # else
 #    define HTTPVO_HAVE__ARM_NEON__ 0
+#endif
+
+#if defined(__BMI__)
+#    define HTTPVO_HAVE__BMI__ 1
+#else
+#    define HTTPVO_HAVE__BMI__ 0
 #endif
 
 #if defined(__ORDER_LITTLE_ENDIAN__)
@@ -128,9 +146,7 @@
 #    define HTTPVO_PRIOTIZE_HTAB 0
 #endif
 
-#
-
-#if defined(__cplusplus) && __cplusplus >= 201703L
+#if CXX_VERSION >= 201703L
 #    define HTTPVO_CXX17_LIKELY(...)   (__VA_ARGS__) [[likely]]
 #    define HTTPVO_CXX17_UNLIKELY(...) (__VA_ARGS__) [[unlikely]]
 #elif HTTPVO_GNUC_COMPARTIBLE__
@@ -141,16 +157,16 @@
 #    define HTTPVO_CXX17_UNLIKELY(x) (x)
 #endif
 
-#if defined(__cplusplus) && __cplusplus >= 201703L
+#if CXX_VERSION >= 201703L
 #    define HTTPVO_CXX17_CONSTEXPR constexpr
 #else
 #    define HTTPVO_CXX17_CONSTEXPR
 #endif
 
-#if  HTTPVO_GNUC_COMPARTIBLE__
+#if  HTTPVO_GNUC_COMPARTIBLE
 #    define inline    __attribute__((__always_inline__)) inline
 #    define make_flat __attribute__((flatten))
-#elif HTTPVO_HAVE_MSVC__
+#elif HTTPVO_HAVE_MSVC
 #    define inline  __forceinline
 #    define make_flat 
 #else
@@ -158,13 +174,13 @@
 #    define make_flat 
 #endif
 
-#if HTTPVO_HAVE_GNUC__
+#if HTTPVO_HAVE_GNUC
 #    define TARGET(str) __attribute__((target(str)))
 #else
 #    define TARGET(str) 
 #endif
 
-#if HTTPVO_GNUC_COMPARTIBLE__
+#if HTTPVO_GNUC_COMPARTIBLE
 #   define httpvo_memcopy __builtin_memcpy
 #   define httpvo_discard_reginfo(r) __asm__("" : "+r"(r))
 #   define HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
@@ -175,13 +191,22 @@
 #else
 #   define httpvo_memcopy memcpy
 #   define httpvo_discard_reginfo(r) ((void)0)
-#   if HTTPVO_HAVE_MSVC__
+#   if HTTPVO_HAVE_MSVC
 #       define HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS\
             __Pragma(warning(push))\
             __Pragma(warning(disable: 4789))
 #       define HTTPVO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS\
             __Pragma(warning(pop))
+#   else
+#       define HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
+#       define HTTPVO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS
 #   endif
+#endif
+
+#ifndef HTTPVO_DEBUG
+#    define HTTPVO_DEBUG 0
+#else
+#    include <iostream>
 #endif
 
 #define U32(x)  static_cast<const u32_t>(x)
@@ -231,7 +256,6 @@ namespace httpvo
      }
 }
 #undef HTTPVO_DEBUG
-#undef HTTPVO_LITTLE_ENDIAN
 #undef HTTPVO_NO_MULTI_WSP
 #undef HTTPVO_LITTLE_ENDIAN
 #undef HTTPVO_NO_LEADING_WSP
