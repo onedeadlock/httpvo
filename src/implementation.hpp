@@ -8,15 +8,6 @@
 #include "include/reqline.hpp"
 #include "include/headerline.hpp"
 #include "simd/implementation.hpp"
-#if   HTTPVO_HAVE__AVX2__
-#    include "simd/haswell/implementation.hpp"
-#endif
-#if HTTPVO_HAVE__SSE4_2__
-#    include "simd/westmere/implementation.hpp"
-#endif
-#if HTTPVO_HAVE__ARM_NEON__
-#    include "simd/neon/implementation.hpp"
-#endif
 
 namespace httpvo::Implementation
 {

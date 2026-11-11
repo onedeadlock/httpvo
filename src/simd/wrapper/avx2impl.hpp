@@ -1,6 +1,6 @@
 #ifndef HTTPVO_SIMD_HASWELL_HPP
 #define HTTPVO_SIMD_HASWELL_HPP
-#include "../implementation.hpp"
+#include "simd.hpp"
 
 namespace httpvo::simd
 {
@@ -37,12 +37,12 @@ namespace httpvo::simd
                return bits::tzcnt<u32_t>(static_cast<const u32_t>(m));
         }
 
-        template<u8_t a=0, u8_t b=0>
+        template<int a=0, int b=0>
         TARGET("avx2")
         inline simdv cmpngt_lt(void)
         {
-            __m256i x = _mm256_add_epi8(lo, _mm256_set1_epi8(static_cast<u8_t>(0x80 - a)));
-            return _mm256_cmpgt_epi8(x, _mm256_set1_epi8(static_cast<u8_t>((b - a) - 0x80)));
+            __m256i x = _mm256_add_epi8(lo, _mm256_set1_epi8(static_cast<int>(0x80 - a)));
+            return _mm256_cmpgt_epi8(x, _mm256_set1_epi8(static_cast<int>((b - a) - 0x80)));
         }
 
         TARGET("avx2")
@@ -116,12 +116,6 @@ namespace httpvo::simd
         {
             // a & ~b
             return _mm256_andnot_si256(v.lo, lo);
-        }
-
-        TARGET("avx2")
-        inline simdv setzero(void) const
-        {
-            return _mm256_setzero_si256();
         }
 
         TARGET("avx2")

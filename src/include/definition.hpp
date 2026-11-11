@@ -223,8 +223,8 @@ namespace httpvo
     using u16_t  = std::uint16_t;
     using u32_t  = std::uint32_t;
     using u64_t  = std::uint64_t;
+    using uint_t = typename std::conditional<std::numeric_limits<std::size_t>::digits < 64, u32_t, u64_t>::type;
     using mask_t = std::uint64_t;
-    using INT = typename std::conditional<std::numeric_limits<std::size_t>::digits < 64, u32_t, u64_t>::type;
 
     auto pass   = []{};
 
