@@ -4,10 +4,10 @@
 
 namespace httpvo::simd
 {
-     constexpr int MINWIDTH = std::numeric_limits<INT>::digits / 8; // minimum supported width
-     constexpr int MAXWIDTH = 32; // maximum supported width
+     constexpr int VMIN = (std::numeric_limits<INT>::digits + 1) / 8; // minimum supported width
+     constexpr int VMAX = 32; // maximum supported width
 
-     template <int N=MINWIDTH>
+     template <int N=VMIN>
      struct simdv;
 
      template <class... Ts>
@@ -19,7 +19,7 @@ namespace httpvo::simd
       template <class T, class Ts = void>
       struct IS_SIMD;
 
-     using SIMD_SET = SIMD_IMPLEMENTATION_SET<simdv<MINWIDTH>, simdv<16>, simdv<32>>;
+     using SIMD_SET = SIMD_IMPLEMENTATION_SET<simdv<VMIN>, simdv<16>, simdv<32>>;
 
      template <class T>
      using REMOVE_CVREF_T = typename std::remove_cv<typename std::remove_reference<T>::type>::type;
