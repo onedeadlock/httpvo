@@ -1,12 +1,12 @@
-#ifndef HTTPVO_SIMD_IMPLEMENTAION_HPP
-#define HTTPVO_SIMD_IMPLEMENTAION_HPP
+#ifndef HTTPVO_SIMD_HPP
+#define HTTPVO_SIMD_HPP
 #include "../../include/definition.hpp"
 #include "../../include/constants.hpp"
 #include "../../include/bits.hpp"
 
 namespace httpvo::simd
 {
-     constexpr int VMIN = setup::neon ? 8 : (std::numeric_limits<uint_t>::digits + 1) / 8; // minimum simd width
+     constexpr int VMIN = setup::neon ? 8 : std::numeric_limits<uint_t>::digits / 8; // minimum simd width
      constexpr int VMAX = 32; // maximum simd width
 
      template <int N=VMIN>
@@ -35,14 +35,26 @@ namespace httpvo::simd
      template <class T>
      using is_simd = IS_SIMD<T, SIMD_SET>;
 
-     constexpr u8_t width_select[8]{31, 63, 15, 0, 31};
-     constexpr u8_t mask_select[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
+     // see test/scripts/generate_shuffle_table.py for table generation and comments.
+     alignas(16) static constexpr u8_t TCHAR_CLASS_LUT[32]{
+        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28,
+        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00
+     };
+
+     // see test/scripts/generate_shuffle2_table.py for table generation and comments.
+     alignas(16) static constexpr u8_t CONTROL_CHAR_CLASS_LUT[32]{
+        002, 002, 002, 002, 002, 002, 002, 002, 002, 001, 002, 002, 002, 002, 002, 003,
+        001, 000, 127, 127, 127, 127, 127, 002, 127, 127, 127, 127, 127, 127, 127, 127,
+     };
+
+     constexpr u8_t WIDTH_SELECT[8]{31, 63, 15, 0, 31};
+     constexpr u8_t MASK_SELECT[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
 
      template<int N>
      constexpr int mask_width(void)
      {
           static_assert(N and bits::is_power_of_two(N));
-          return static_cast<int>(width_select[N >> 3]);
+          return static_cast<int>(WIDTH_SELECT[N >> 3]);
      }
 
      template <typename T, T width, T splat>
@@ -50,7 +62,7 @@ namespace httpvo::simd
      {
           static_assert(std::is_integral<T>() and not std::is_same<T, bool>() and std::is_unsigned<T>());
           // fill & mask
-          return static_cast<T>((1ULL << width) - 1) & static_cast<T>(mask_select[splat - 1] * constant::c01);
+          return static_cast<T>((1ULL << width) - 1) & static_cast<T>(MASK_SELECT[splat - 1] * constant::c01);
      }
 }
 #endif // HTTPVO_SIMD_IMPLEMENTAION_HPP

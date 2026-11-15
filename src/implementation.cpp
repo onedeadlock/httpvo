@@ -16,6 +16,25 @@ namespace httpvo::Implementation
         Delete         = '\x7f',
     };
 
+      //  3 -> name tchar; 2 -> value tchar
+    static constexpr u8_t TCHAR_LUT[256]{
+        0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2,
+        2, 3, 2, 3, 3, 3, 3, 3, 2, 2, 3, 3, 2, 3, 3, 2,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2,
+        2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 2, 0, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+
     template<typename T, bool SPCONLY>
     inline T is_whitespace(const T& c)
     {
@@ -42,63 +61,6 @@ namespace httpvo::Implementation
         httpvo_memcopy(&LD, b, 8);
         return LD;
     }
-
-    // see test/scripts/generate_shuffle_table.py for table generation and comments.
-    alignas(16) static constexpr u8_t TCHAR_CLASS_LUT[32]{
-        58, 63, 62, 63, 63, 63, 63, 63, 62, 62, 61, 21, 52, 21, 61, 28,
-        00, 00, 01, 02, 04,  8, 16, 32, 00, 00, 00, 00, 00, 00, 00, 00
-    };
-
-    // see test/scripts/generate_shuffle2_table.py for table generation and comments.
-    alignas(16) static constexpr u8_t CONTROL_CHAR_CLASS_LUT[32]{
-        002, 002, 002, 002, 002, 002, 002, 002, 002, 001, 002, 002, 002, 002, 002, 003,
-        001, 000, 127, 127, 127, 127, 127, 002, 127, 127, 127, 127, 127, 127, 127, 127,
-    };
-
-    //  3 -> name tchar; 2 -> value tchar
-    static constexpr u8_t TCHAR_LUT[256]{
-        0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2,
-        2, 3, 2, 3, 3, 3, 3, 3, 2, 2, 3, 3, 2, 3, 3, 2,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2,
-        2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 3,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3, 2, 0, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-
-    template<int N>
-    inline mask_t is_control_char(const simdv<N>& v)
-    {
-        const simdv<N> CTRL_LO = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 00);
-        const simdv<N> CTRL_HI = simdv<N>::load_tbl1(CONTROL_CHAR_CLASS_LUT + 16);
-        if HTTPVO_CXX17_CONSTEXPR (setup::neon)
-        {
-            if HTTPVO_CXX17_CONSTEXPR (not setup::arm64)
-                return ((v <= Character::NonPrintMax) | (v == Character::Delete)) ^ (v == Character::HorizontalTab); // no vqtbl1q
-            else return (v & 0xf).shuf_table(CTRL_LO) > (v >> 4).shuf_table(CTRL_HI);
-        }    
-        return v.shuf_table(CTRL_LO) > ((v >> 4) & 0xf).shuf_table(CTRL_HI);
-    }
-
-    template<int N>
-    inline mask_t is_non_tchar(const simdv<N>& v)
-    {
-        const simdv<N> TCHAR_LO = simdv<N>::load_tbl1(TCHAR_CLASS_LUT + 00);
-        const simdv<N> TCHAR_HI = simdv<N>::load_tbl1(TCHAR_CLASS_LUT + 16);
-
-        if HTTPVO_CXX17_CONSTEXPR (setup::neon)
-           return (v & 0xf).shuf_table(TCHAR_LO).andeqz((v >> 4).shuf_table(TCHAR_HI));
-        // skipped first 'v & 0xf' since v >= 0x80 falls to 0 and that is what is needed
-        return v.shuf_table(TCHAR_LO).andeqz(((v >> 4) & 0xf).shuf_table(TCHAR_HI));
-     }
 
     inline int Parse::end_of_parse(const u32_t v) noexcept
     {
@@ -144,7 +106,7 @@ namespace httpvo::Implementation
     inline std::size_t is_out_of_range(const u8_t * const b)
     {
         static_assert(X == 0x21 and Y == 0x7e);
-        const mask_t mask = simdv<N>(b).template cmpngt_lt<X, Y>();
+        const mask_t mask = simdv<N>(b).template off_range<X, Y>().to_bitmask();
         return simdv<N>::countzero_bitmask(mask);
     };
 
@@ -207,7 +169,7 @@ namespace httpvo::Implementation
     {
         if HTTPVO_CXX17_CONSTEXPR (not setup::no_vectorize)
         {
-            const mask_t mask = simdv<>(b).fast_not_tchar<ALPHAONLY>();
+            const mask_t mask = simdv<>(b).fast_not_tchar<ALPHAONLY>().to_bitmask();
             if HTTPVO_CXX17_LIKELY (mask) // fast pre-check
                 return _offset_of_non_tchar_mask(b, mask);
             return simdv<>::N;
@@ -242,7 +204,7 @@ namespace httpvo::Implementation
     {
         if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _offset_of_bad_char_in_value(b, 0, simdv<>::N);
-        const mask_t offset = simdv<>(b).is_not_print_char();
+        const mask_t offset = simdv<>(b).is_not_print_char().to_bitmask();
         return simdv<>::countzero_bitmask(offset);
     }
 
@@ -266,7 +228,7 @@ namespace httpvo::Implementation
     {
         constexpr mask_t ALL_WHITESPACE = simd::mask_fill<mask_t, simd::mask_width<N>(), simdv<N>::bitpos>();
         static_assert(ALL_WHITESPACE != 0);
-        const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b));
+        const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b)).to_bitmask();
         return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
     }
 
@@ -375,9 +337,7 @@ namespace httpvo::Implementation
         {
             if HTTPVO_CXX17_LIKELY (len > (N - 1))
                 return _find_request_url_end_main<N>(b, offset, len, out);
-            if (len < 8) 
-                return _find_request_url_end_main<1>(b, offset, len, out);
-            return _find_request_url_end_main<8>(b, offset, len, out);
+            return _find_request_url_end_main<1>(b, offset, len, out);
         }
     }
 
@@ -424,7 +384,7 @@ namespace httpvo::Implementation
             simdv<N> v{p};
             if (not parsing_value)
             {
-                mask_t non_tchar = is_non_tchar<N>(v);
+                mask_t non_tchar = v.is_non_tchar().to_bitmask();
                 if (not non_tchar)
                     continue;
                 const u8_t *const q = p + simdv<N>::countzero_bitmask(non_tchar);
@@ -433,7 +393,7 @@ namespace httpvo::Implementation
                 out.set_name_end(static_cast<std::size_t>(q - b), nullptr);
                 parsing_value = true;
             }
-            if (mask_t control_char = is_control_char<N>(v))
+            if (mask_t control_char = v.is_not_print_char().to_bitmask())
             {
                 const u8_t *const q = p + simdv<N>::countzero_bitmask(control_char);
                 const std::size_t offset = size(q, b);

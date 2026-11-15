@@ -10,14 +10,14 @@ namespace httpvo::simd
 
         uint_t v;
         simdv(void) = default;
-        constexpr simdv(const uint_t    x) : v( x ) {}
+        constexpr simdv(const uint_t x) : v( x ) {}
         constexpr simdv(const simdv& x) : v(x.v) {}
         explicit  simdv(const void *const b) noexcept
         {
             httpvo_memcopy(&v, b, VMIN);
         }
 
-        static inline constexpr uint_t splat(const int x)
+        static constexpr uint_t splat(const int x)
         {
             return x * constant::c01;
         }
@@ -49,7 +49,7 @@ namespace httpvo::simd
         }
 
         template <int A, int B>
-        inline uint_t cmpngt_lt(void) const noexcept
+        inline simdv off_range(void) const noexcept
         {
             static_assert(A < 0x7f && B < 0x80);
             constexpr uint_t a = splat(0x7f + A);
@@ -74,7 +74,7 @@ namespace httpvo::simd
             constexpr uint_t N10 = splat(0x80 - 0xa);
 
             const uint_t x = u ^ constant::c30; // convert ['0' - '9'] to [0 - 9]
-            return     x + N10; // is greater than 9                    
+            return       x + N10; // is greater than 9                    
         }
 
         inline uint_t _is_not_hyphen(const uint_t u) const noexcept
@@ -82,11 +82,11 @@ namespace httpvo::simd
             // :: u < 0x80
             constexpr uint_t HYPHEN_NORM = splat(0x2d);
             const uint_t to_zero = (u & constant::c7f) ^ HYPHEN_NORM; // set all hyphens to zero
-            return     to_zero + constant::c7f; // extract zero lanes
+            return       to_zero + constant::c7f; // extract zero lanes
         }
 
         template <int ALPHAONLY>
-        inline mask_t fast_not_tchar(void) const noexcept
+        inline simdv fast_not_tchar(void) const noexcept
         {
             const uint_t x = v & constant::c80; // make v < 0x80
             if HTTPVO_CXX17_CONSTEXPR (ALPHAONLY)
@@ -95,8 +95,13 @@ namespace httpvo::simd
                 return ((_is_not_letter(x) & _is_not_number(x)) & (_is_not_hyphen(x) | v)) & constant::c80;
         }
 
+        inline simdv is_not_tchar(void) const noexcept
+        {
+            return 0;
+        }
+
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline uint_t is_not_print_char(uint_t v) const noexcept
+        inline simdv is_not_print_char(void) const noexcept
         {
             const uint_t x = v & constant::c7f; // make v < 0x80
             // @not_print: (159 - v) > 127 when v < 32 (control bytes) therefore its bit 7 is left set whereas v => 32 unsets it

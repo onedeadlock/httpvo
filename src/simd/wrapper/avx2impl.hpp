@@ -10,127 +10,72 @@ namespace httpvo::simd
         static constexpr int bitpos = 1;
         static constexpr int N = 32;
 
-        __m256i lo;
+        __m256i v;
 
         simdv(void) = default;
-        simdv(__m256i u)       : lo{u}{}
-        simdv(const simdv& v)  : lo{v.lo}{}
-        explicit simdv(const void *b)
+        simdv(__m256i u)      : v{u}{}
+        simdv(const simdv& x) : v{x.v}{}
+        explicit simdv(const void *b) noexcept
         {
-            lo = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));
+            v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));
         }
 
-        TARGET("avx2")
-        inline bool is_zero(void)
+        inline mask_t to_bitmask(void) const noexcept
         {
-            return _mm256_testz_si256(lo, lo);
+            return _mm256_movemask_epi8(v);
         }
 
-        TARGET("avx2")
-        inline mask_t to_bitmask(void) const
+        inline simdv operator|(const simdv& x) const noexcept
         {
-            return _mm256_movemask_epi8(lo);
+            return _mm256_or_si256(v, x.v);
+        }
+
+        inline simdv operator==(const int x) const noexcept
+        {
+            return _mm256_cmpeq_epi8(v, _mm256_set1_epi8(x));
+        }
+
+        inline operator mask_t(void) const noexcept
+        {
+            return _mm256_movemask_epi8(v);
+        }
+
+        template<int A=0, int B=0>
+        inline simdv off_range(void) const noexcept
+        {
+            constexpr int s = static_cast<int>(0x80 - A);
+            constexpr int b = static_cast<int>((B - A) - 0x80);
+            __m256i x = _mm256_add_epi8(v, _mm256_set1_epi8(s));
+            return _mm256_cmpgt_epi8(x, _mm256_set1_epi8(b));
+        }
+
+        template <int ALPHAONLY>
+        inline simdv fast_not_tchar(void) const noexcept
+        {
+            return _mm256_setzero_si256();
+        }
+
+        inline simdv is_not_tchar(void) const noexcept
+        {
+            __m256i ld0    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(TCHAR_CLASS_LUT + 00)));
+            __m256i ld1    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(TCHAR_CLASS_LUT + 16)));
+            __m256i hifb   = _mm256_and_si256(_mm256_srli_epi64(v, 4), _mm256_set1_epi8(0xf)); // high four bits
+            return _mm256_cmpgt_epi8(_mm256_shuffle_epi8(ld0, v), _mm256_shuffle_epi8(ld1, hifb));
+        }
+
+        template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
+        inline simdv is_not_print_char(void) const noexcept
+        {
+            __m256i ld0    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(CONTROL_CHAR_CLASS_LUT + 00)));
+            __m256i ld1    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(CONTROL_CHAR_CLASS_LUT + 16)));
+            __m256i hifb   = _mm256_and_si256(_mm256_srli_epi64(v, 4), _mm256_set1_epi8(0xf)); // high four bits
+            __m256i cls    = _mm256_and_si256(_mm256_shuffle_epi8(ld0, v), _mm256_shuffle_epi8(ld1, hifb));
+            return _mm256_cmpeq_epi8(cls, _mm256_setzero_si256());
         }
 
         static inline int countzero_bitmask(const mask_t m)
         {
                return bits::tzcnt<u32_t>(static_cast<const u32_t>(m));
-        }
-
-        template<int a=0, int b=0>
-        TARGET("avx2")
-        inline simdv cmpngt_lt(void)
-        {
-            __m256i x = _mm256_add_epi8(lo, _mm256_set1_epi8(static_cast<int>(0x80 - a)));
-            return _mm256_cmpgt_epi8(x, _mm256_set1_epi8(static_cast<int>((b - a) - 0x80)));
-        }
-
-        TARGET("avx2")
-        inline simdv shuf_table(const simdv& tab) const
-        {
-            return _mm256_shuffle_epi8(tab.lo, lo);
-        }
-
-        TARGET("avx2")
-        inline simdv operator&(const int x) const
-        {
-            return _mm256_and_si256(lo, _mm256_set1_epi8(x));
-        }
-
-        TARGET("avx2")
-        inline simdv operator>>(const int r) const
-        {
-            return _mm256_srli_epi64(lo, r);
-        }
-
-        TARGET("avx2")
-        inline simdv operator|(const int x) const
-        {
-            return _mm256_or_si256(lo, _mm256_set1_epi8(x));
-        }
-
-         TARGET("avx2")
-        inline simdv operator|(const simdv& x) const
-        {
-            return _mm256_or_si256(lo, x.lo);
-        }
-
-        TARGET("avx2")
-        inline simdv operator^(const simdv& x) const
-        {
-            return _mm256_xor_si256(lo, x.lo);
-        }
-
-        TARGET("avx2")
-        inline simdv operator^(const int x) const
-        {
-            return _mm256_xor_si256(lo, _mm256_set1_epi8(x));
-        }
-
-        TARGET("avx2")
-        inline simdv operator==(const int x) const
-        {
-            return _mm256_cmpeq_epi8(lo, _mm256_set1_epi8(x));
-        }
-
-        TARGET("avx2")
-        inline simdv operator<=(const int x) const
-        {
-            return _mm256_cmpeq_epi8(_mm256_min_epi8(lo, _mm256_set1_epi8(x)), lo);
-        }
-
-        TARGET("avx2")
-        inline simdv operator>(const simdv &v) const
-        {
-            return _mm256_cmpgt_epi8(lo, v.lo);
-        }
-
-        TARGET("avx2")
-        inline simdv andeqz(const simdv& v)
-        {
-            return _mm256_cmpeq_epi8(_mm256_and_si256(lo, v.lo), _mm256_setzero_si256());
-        }
-
-        TARGET("avx2")
-        inline simdv andnot(const simdv &v) const
-        {
-            // a & ~b
-            return _mm256_andnot_si256(v.lo, lo);
-        }
-
-        TARGET("avx2")
-        inline operator mask_t(void) const
-        {
-            return _mm256_movemask_epi8(lo);
-        }
-
-        TARGET("avx2")
-        static inline simdv load_tbl1(const void * const b)
-        {
-            // load a 16B table
-            if (setup::debug)
-                assert(!(std::uintptr_t(b) & (16 - 1))); // must have an alignment of 16
-            return _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(b)));
         }
     };
 }
