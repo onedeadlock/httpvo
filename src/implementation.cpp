@@ -50,37 +50,46 @@ namespace httpvo::Implementation
 
     inline u32_t load4(const u8_t * const b)
     {
-        u32_t LD;
-        httpvo_memcopy(&LD, b, 4);
-        return LD;
+        // :: assume len(b) >= 4
+        u32_t LD = 0;
+        if HTTPVO_CXX17_CONSTEXPR (setup::little_endian)
+            httpvo_memcopy(&LD, b, 4);
+        else
+        {
+#           define USH(c, n) (static_cast<u32_t>(c) << (n))
+            // GCC and clang should fold these shifts into a DWORD load (with a bswap on Big Endian mode). It is not the case for MSVC, but in our use case,the other option cost as much or even more.
+            // @discard_reginfo: clang may not emit a single load if LD is used in some ways (like shifting/masking out any of the bytes), so we force it.
+            LD = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH(b[3], 24);
+            httpvo_discard_reginfo(LD);
+#           undef USH
+         }
+         return LD;
     }
 
     inline u64_t load8(const u8_t * const b)
     {
-        u64_t LD;
-        httpvo_memcopy(&LD, b, 8);
+        // :: assume len(b) >= 8
+        u64_t LD = 0;
+        if HTTPVO_CXX17_CONSTEXPR (setup::little_endian)
+            httpvo_memcopy(&LD, b, 8);
+        else
+        {
+#           define USH(c, n) (static_cast<u64_t>(c) << (n))
+            // Again, GCC and clang should fold these shifts into a QWORD load with a bswap if needed.
+            LD |= USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24);
+            LD |= USH(b[4], 32) | USH(b[5], 40) | USH(b[6], 48) | USH(b[7], 56);
+            httpvo_discard_reginfo(LD);
+#           undef USH
+        }
         return LD;
     }
 
-    inline int Parse::end_of_parse(const u32_t v) noexcept
+    inline int Parse::end_of_parse(const u8_t * const b) noexcept
     {
         constexpr u32_t CRLF = 0x0a0d;
+        const u32_t v = load4(b);
         end_of_parse_marker = v == (CRLF | (CRLF << 16));
         return (v & 0xffffu) == CRLF;
-    }
-
-    inline int Parse::end_of_parse_single_load(const u8_t * const b) noexcept
-    {
-        if HTTPVO_CXX17_CONSTEXPR (setup::little_endian)
-            return end_of_parse(load4(b));
-        else
-        {
-#           define USH(c, n) (static_cast<u32_t>(c) << (n))
-            // GCC and clang should fold these shifts into a single DWORD load (with a bswap in Big Endian mode)
-            const u32_t LD = USH(b[0], 0) | USH(b[1], 8) | USH(b[2], 16) | USH(b[3], 24);
-            return end_of_parse(LD);
-#           undef USH
-         }
     }
     
     inline int Parse::is_not_end_of_line(const u8_t * const b, const std::size_t rem) noexcept
@@ -89,7 +98,7 @@ namespace httpvo::Implementation
         if HTTPVO_CXX17_CONSTEXPR (setup::end_of_line_is_line_feed)
             pass(); // TODO
         if HTTPVO_CXX17_LIKELY (rem > 3)
-            return not end_of_parse_single_load(b);
+            return not end_of_parse(b);
          return (b[0] != Character::CarriageReturn) | (b[1] != Character::LineFeed);
     }
 
@@ -97,7 +106,7 @@ namespace httpvo::Implementation
     inline std::size_t is_out_of_range(const u8_t *);
 
     template<>
-    std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
     {
         return static_cast<const u8_t>(*b - 0x21) > 0x5d;
     }
@@ -129,20 +138,7 @@ namespace httpvo::Implementation
     template<class T>
     inline bool set_version(const u8_t * const b, ReqLine& out)
     {
-        // :: assume len(b) >= 8
-        u64_t LD = 0;
-        if HTTPVO_CXX17_CONSTEXPR (setup::little_endian)
-            LD = load8(b);
-        else
-        {
-#           define USH(c, n) (static_cast<u64_t>(c) << (n))
-            // Again, GCC and clang should fold these shifts into a single QWORD load (with a bswap on Big Endian mode). It is not the case for MSVC, but the cost against per byte compare, is almost the same.
-            // @discard_reginfo: clang sees that the last byte is discarded and then reused singly, so it emit 4 loads (first 4 bytes, next two + 1 bytes, and the last byte) instead of 1 for the 8 bytes.
-            LD |= USH(b[0], 0U) | USH(b[1], 8U) | USH(b[2], 16) | USH(b[3], 24);
-            LD |= USH(b[4], 32) | USH(b[5], 40) | USH(b[6], 48) | USH(b[7], 56);
-            httpvo_discard_reginfo(LD);
-#           undef USH
-        }
+        const u64_t LD = load8(b);
         return is_protocol<T>(LD << 8) & is_expected_minor_version(LD >> 56, out);
     }
 
@@ -286,7 +282,7 @@ namespace httpvo::Implementation
         }
         return stop + is_out_of_range<0x21, 0x7e, N>(stop);
     }
-    HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
+    HTTPVO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS
     
     template <>
     inline const u8_t *_find_request_url_end<1>(const u8_t *b, const u8_t *const end)
@@ -303,7 +299,7 @@ namespace httpvo::Implementation
         return b;
     }
 
-    inline status::statat_t __status_bad_or_expect(const u8_t * const e, const u8_t * const s)
+    [[gnu::cold]] status::statat_t status_bad_or_expect(const u8_t * const e, const u8_t * const s)
     {
         if HTTPVO_CXX17_CONSTEXPR (setup::no_multispace)
             return  {status::bad_whitespace, size(e, s)};
@@ -316,7 +312,7 @@ namespace httpvo::Implementation
         const u8_t * const end = (b + offset) + len;
         const u8_t *p = trim_whitespace<N>(b + offset, end);
         if HTTPVO_CXX17_UNLIKELY (p == end)
-            return __status_bad_or_expect(p, b);
+            return status_bad_or_expect(p, b);
         p = _find_request_url_end<N>(p, end);
         if HTTPVO_CXX17_UNLIKELY (p == end)
             return {status::expect_bytes, size(p, b)};
@@ -324,7 +320,7 @@ namespace httpvo::Implementation
             return {status::unexpected_char, size(p, b)};
         p += 1;
         if HTTPVO_CXX17_UNLIKELY (p < end and (p = trim_whitespace<N>(p, end)) == end)
-            return __status_bad_or_expect(p, b);
+            return status_bad_or_expect(p, b);
         return {size(end, p) < (setup::req_line_min_size - 4), out.advance(size(p, b))};
     }
 

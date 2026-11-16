@@ -61,25 +61,25 @@ namespace httpvo::simd
         inline simdv _is_not_tchar_arm32(arm32_tag) const noexcept
         {
             // TODO: check assembly, if the table load is hoisted out
-            const uint8x16_t  ld0  = vld1q_u8(reinterpret_cast<char *>(TCHAR_CLASS_LUT + 00));
-            const uint8x16_t  ld1  = vld1q_u8(reinterpret_cast<char *>(TCHAR_CLASS_LUT + 16));
-            const uint8x8x2_t ldlo = {{vget_low_u8(ld0), vget_high_u8(ld0)};
-            const uint8x8x2_t ldhi = {{vget_low_u8(ld1), vget_high_u8(ld1)};
-            uint8x16_t lo    = vandq_u8(v, vdupq_n_u8(0xf));
-            uint8x16_t hi    = vshlq_n_u8(v, 4);
-            uint8x8_t  r0    = vtbl2_u8(ldlo, vget_low_u8(lo));
-            uint8x8_t  r1    = vtbl2_u8(ldlo, vget_high_u8(lo));
-            uint8x8_t  r3    = vtbl2_u8(ldhi, vget_low_u8(hi));
-            uint8x8_t  r4    = vtbl2_u8(ldhi, vget_high_u8(hi));
-            uint8x16_t rlo   = vcombine_u8(r0, r1);
-            uint8x16_t rhi   = vcombine_u8(r3, r4);
+            const uint8x16_t  ld0  = vld1q_u8(TCHAR_CLASS_LUT + 00);
+            const uint8x16_t  ld1  = vld1q_u8(TCHAR_CLASS_LUT + 16);
+            const uint8x8x2_t ldlo = {{vget_low_u8(ld0), vget_high_u8(ld0)}};
+            const uint8x8x2_t ldhi = {{vget_low_u8(ld1), vget_high_u8(ld1)}};
+            uint8x16_t lo  = vandq_u8(v, vdupq_n_u8(0xf));
+            uint8x16_t hi  = vshrq_n_u8(v, 4);
+            uint8x8_t  r0  = vtbl2_u8(ldlo, vget_low_u8(lo));
+            uint8x8_t  r1  = vtbl2_u8(ldlo, vget_high_u8(lo));
+            uint8x8_t  r3  = vtbl2_u8(ldhi, vget_low_u8(hi));
+            uint8x8_t  r4  = vtbl2_u8(ldhi, vget_high_u8(hi));
+            uint8x16_t rlo = vcombine_u8(r0, r1);
+            uint8x16_t rhi = vcombine_u8(r3, r4);
             return vcgtq_u8(rlo, rhi);
         }
 
         inline simdv _is_not_tchar(arm64_tag) const noexcept
         {
-            uint8x16_t ld0 = vld1q_u8(reinterpret_cast<char *>(TCHAR_CLASS_LUT + 00));
-            uint8x16_t ld1 = vld1q_u8(reinterpret_cast<char *>(TCHAR_CLASS_LUT + 16));
+            uint8x16_t ld0 = vld1q_u8(TCHAR_CLASS_LUT + 00);
+            uint8x16_t ld1 = vld1q_u8(TCHAR_CLASS_LUT + 16);
             uint8x16_t lo  = vandq_u8(v, vdupq_n_u8(0xf));
             uint8x16_t hi  = vshlq_n_u8(v, 4);
             return vcgtq_u8(vqtbl1_u8(ld0, lo), vqtbl1_u8(ld1, hi));
@@ -102,17 +102,17 @@ namespace httpvo::simd
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
         inline simdv _is_not_print_char(arm64_tag) const noexcept
         {
-            uint8x16_t ld0 = vqld1q_u8(reinterpret_cast<char *>(CONTROL_CHAR_CLASS_LUT + 00));
-            uint8x16_t ld1 = vqld1q_u8(reinterpret_cast<char *>(CONTROL_CHAR_CLASS_LUT + 16));
+            uint8x16_t ld0 = vqld1q_u8(CONTROL_CHAR_CLASS_LUT + 00);
+            uint8x16_t ld1 = vqld1q_u8(CONTROL_CHAR_CLASS_LUT + 16);
             uint8x16_t lo  = vandq_u8(v, vdupq_n_u8(0xf));
-            uint8x16_t hi  = vshlq_n_u8(v, 4);
+            uint8x16_t hi  = vshrq_n_u8(v, 4);
             return vmvnq_u8(vtstq_u8(lo, hi));
         }
   
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
         inline simdv is_not_print_char(void) const noexcept
         {
-            return is_not_print_char<INCLUDE_TAB>(typename std::conditional<setup::arm64, arm64_type, arm32_type>::type{});
+            return is_not_print_char<INCLUDE_TAB>(typename std::conditional<setup::arm64, arm64_tag, arm32_tag>::type{});
         }
 
         static inline int countzero_bitmask(const mask_t m)

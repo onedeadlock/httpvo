@@ -117,10 +117,10 @@ namespace httpvo::bits
         static_assert(N <= 64);
         const U v = static_cast<U>(x);
         if HTTPVO_CXX17_CONSTEXPR (N < 32) // (v | 1 << N) makes v == 0 return N
-            return tzcnt32(static_cast<u32_t>(v) | (static_cast<u32_t>(1) << N));
+            return  tzcnt32(static_cast<u32_t>(v) | (static_cast<u32_t>(1) << N));
         else if HTTPVO_CXX17_CONSTEXPR (N == 32)
-            return tzcnt32(static_cast<u32_t>(v));
-        return tzcnt64(static_cast<u64_t>(v));
+            return  tzcnt32(static_cast<u32_t>(v));
+        else return tzcnt64(static_cast<u64_t>(v));
     }
 }
 #endif // HTTPVO_BITS_HPP

@@ -51,7 +51,7 @@ namespace httpvo::simd
         }
 
         template <int A, int B>
-        inline simdv cmpngt_lt(void) const noexcept
+        inline simdv off_range(void) const noexcept
         {
             uint8x8_t x = vsub_u8(v, vdup_n_u8(A));
             return vcgt_u8(x, vdup_n_u8(B - A));
@@ -60,17 +60,21 @@ namespace httpvo::simd
         template <int ALPHAONLY>
         inline simdv fast_not_tchar(void) const noexcept
         {
-            // TODO use TABLE
-            uint8x8_t x = vsub_u8(v, vdup_n_u8(0x41)); // shift v so that v < 26 for any alphabet char
-            uint8x8_t is_not_letter = vcgt_u8(x, vdup_n_u8(0x19));
-            if HTTPVO_CXX17_CONSTEXPR (ALPHAONLY)
-                return is_not_letter;
-            else
-            {
-                uint8x8_t is_not_number = vcgt_u8(veor_u8(v, vcreate_u8(constant::c30)), vdup_n_u8(0x9));
-                uint8x8_t is_not_hyphen = vmvn_u8(vceq_u8(v, vdup_n_u8(0x2d)));
-                return vand_u8(vand_u8(is_not_letter, is_not_number), is_not_hyphen);
-            }
+            const uint8x16_t   ld0  = vld1q_u8(TCHAR_CLASS_LUT + 00);
+            const uint8x16_t   ld1  = vld1q_u8(TCHAR_CLASS_LUT + 16);
+            const uint8x16x2_t ldlo = {{vget_low_u8(ld0), vget_high_u8(ld0)}};
+            const uint8x16x2_t ldhi = {{vget_low_u8(ld1), vget_high_u8(ld1)}};
+            uint8x8_t lo  = vand_u8(v, vdup_n_u8(0xf));
+            uint8x8_t hi  = vshr_n_u8(v, 4);
+            uint8x8_t rlo = vtbl2_u8(ldlo, lo);
+            uint8x8_t rhi = vtbl2_u8(ldhi, hi);
+            return vcgt_u8(rlo, rhi);
+        }
+
+        template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
+        inline simdv is_not_tchar(void) const noexcept
+        {
+            return fast_not_tchar<0>();
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>

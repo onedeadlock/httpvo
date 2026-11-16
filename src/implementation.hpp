@@ -32,8 +32,7 @@ namespace httpvo::Implementation
         private:
         bool at_start_line;
         bool end_of_parse_marker;
-        int  end_of_parse(const u32_t v) noexcept;
-        int  end_of_parse_single_load(const u8_t * const b) noexcept;
+        int  end_of_parse(const u8_t * const) noexcept;
         int  is_not_end_of_line(const u8_t * const, const std::size_t) noexcept;
     };
 }
