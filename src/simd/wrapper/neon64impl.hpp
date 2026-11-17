@@ -117,7 +117,7 @@ namespace httpvo::simd
 
         static inline int countzero_bitmask(const mask_t m)
         {
-            return bits::tzcnt<u64_t>(static_cast<const u64_t>(m));
+            return bits::countzero<u64_t>(static_cast<const u64_t>(m));
         }
     };
 }

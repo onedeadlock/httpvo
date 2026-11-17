@@ -164,14 +164,14 @@
 #endif
 
 #if HTTPVO_GNUC_COMPARTIBLE
-#    define inline __attribute__((always_inline, flatten, artificial)) inline
-#    define make_flat __attribute__((flatten))
+#    define inline    __attribute__((always_inline, flatten, artificial)) inline
+#    define noinline  __attribute__((noinline, cold))
 #elif HTTPVO_HAVE_MSVC
-#    define inline __declspec(forceinline flatten) inline
-#    define make_flat 
+#    define inline   __declspec(forceinline flatten) inline
+#    define noinline __declspec(noinline) 
 #else
 #    define inline inline
-#    define make_flat 
+#    define noinline
 #endif
 
 #if HTTPVO_HAVE_GNUC

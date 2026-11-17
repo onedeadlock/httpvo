@@ -70,46 +70,46 @@ namespace httpvo::bits
         return x ^ -x;
     }
 
-    inline int tzcnt32T(const u32_t x)
+    inline int countzero32T(const u32_t x)
     {
         return constant::DeBruijn32_seq[(least_set_bit(x) * constant::DeBruijn32_const) >> 27];
     }
 
-    inline int tzcnt64T(const u64_t x)
+    inline int countzero64T(const u64_t x)
     {
         return constant::DeBruijn64_seq[(set_bits_up_to_least_bit(x) * constant::DeBruijn64_const) >> 58];
     }
 
-    inline int tzcnt32(const u32_t x) noexcept
+    inline int countzero32(const u32_t x) noexcept
     {
 #       if HTTPVO_GNUC_COMPARTIBLE
-            return x ? __builtin_ctz(x) : 32;
+            return __builtin_ctz(x);
 #       elif HTTPVO_HAVE_MSVC && HTTPVO_ARCH_ARM
             return static_cast<int>(_CountTrailingZeros(x));
 #       elif HTTPVO_HAVE_MSVC
             unsigned long n;
-            return x ? (_BitScanForward(&n, x), n) : 32;
+            return (_BitScanForward(&n, x), n);
 #       else
-            return tzcnt32T(x);
+            return countzero32T(x);
 #       endif
     }
 
-    inline int tzcnt64(const u64_t x) noexcept
+    inline int countzero64(const u64_t x) noexcept
     {
-#       if HTTPVO_GNUC_COMPARTIBLE
-            return x ? __builtin_ctzll(x) : 64;
+#       if HTTPVO_GNUC_COMPARTIBLEa
+            return __builtin_ctzll(x);
 #       elif HTTPVO_HAVE_MSVC && HTTPVO_ARM_ARCH
             return static_cast<int>(_CountTrailingZeros64(x));
 #       elif HTTPVO_HAVE_MSVC && HTTPVO_ARCH_X64
             unsigned long n;
-            return x ? (_BitScanForward64(&n, x), n) : 64;
+            return (_BitScanForward64(&n, x), n);
 #       else
-            return tzcnt64T(x);
+            return countzero64T(x);
 #       endif
     }
 
     template <typename T>
-    inline int tzcnt(T x) noexcept
+    inline int countzero(T x) noexcept
     {
         static_assert(std::is_integral<T>() and not std::is_same<T, bool>());
         using U = typename std::make_unsigned<T>::type;
@@ -117,10 +117,10 @@ namespace httpvo::bits
         static_assert(N <= 64);
         const U v = static_cast<U>(x);
         if HTTPVO_CXX17_CONSTEXPR (N < 32) // (v | 1 << N) makes v == 0 return N
-            return  tzcnt32(static_cast<u32_t>(v) | (static_cast<u32_t>(1) << N));
+            return  countzero32(static_cast<u32_t>(v) | (static_cast<u32_t>(1) << N));
         else if HTTPVO_CXX17_CONSTEXPR (N == 32)
-            return  tzcnt32(static_cast<u32_t>(v));
-        else return tzcnt64(static_cast<u64_t>(v));
+            return  countzero32(static_cast<u32_t>(v));
+        else return countzero64(static_cast<u64_t>(v));
     }
 }
 #endif // HTTPVO_BITS_HPP

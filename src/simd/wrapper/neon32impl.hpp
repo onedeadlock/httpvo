@@ -22,7 +22,7 @@ namespace httpvo::simd
 
         static inline int countzero_bitmask(const mask_t m)
         {
-            return bits::tzcnt<u64_t>(static_cast<u64_t>(m)) >> 3;
+            return bits::countzero<u64_t>(static_cast<u64_t>(m)) >> 3;
         }
 
         static inline simdv splat(const int x)

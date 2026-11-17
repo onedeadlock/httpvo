@@ -24,7 +24,7 @@ namespace httpvo::simd
 
         static inline int countzero_bitmask(const mask_t m)
         {
-            return bits::tzcnt<uint_t>(static_cast<const uint_t>(m)) >> 3;
+            return bits::countzero<uint_t>(static_cast<const uint_t>(m)) >> 3;
         }
 
         inline mask_t to_bitmask(void) const noexcept
