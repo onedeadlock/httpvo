@@ -48,6 +48,11 @@ namespace httpvo::Implementation
         return static_cast<std::size_t>(e - s);
     }
 
+    inline void *setptr(void *lhs, void *rhs)
+    {
+        return (lhs = rhs);
+    }
+
     inline u32_t load4(const u8_t * const b)
     {
         // :: assume len(b) >= 4
@@ -103,19 +108,19 @@ namespace httpvo::Implementation
     }
 
     template <int X, int Y, int N=1>
-    inline std::size_t is_out_of_range(const u8_t *);
+    inline std::size_t is_out_of_range(const u8_t *, const mask_t);
 
     template<>
-    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b)
+    inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b, const mask_t)
     {
         return static_cast<const u8_t>(*b - 0x21) > 0x5d;
     }
 
     template <int X, int Y, int N>
-    inline std::size_t is_out_of_range(const u8_t * const b)
+    inline std::size_t is_out_of_range(const u8_t * const b, const mask_t m=constant::cff)
     {
         static_assert(X == 0x21 and Y == 0x7e);
-        const mask_t mask = simdv<N>(b).template off_range<X, Y>().to_bitmask();
+        const mask_t mask = simdv<N>(b).template off_range<X, Y>().to_bitmask() & m;
         if (mask) return simdv<N>::countzero_bitmask(mask); else return N;
     };
 
@@ -220,11 +225,11 @@ namespace httpvo::Implementation
     }
 
     template<int N>
-    inline std::size_t first_non_whitespace(const u8_t * const b)
+    inline std::size_t first_non_whitespace(const u8_t * const b, const mask_t m=constant::cff)
     {
         constexpr mask_t ALL_WHITESPACE = simd::mask_fill<mask_t, simd::mask_width<N>(), simdv<N>::bitpos>();
         static_assert(ALL_WHITESPACE != 0);
-        const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b)).to_bitmask();
+        const mask_t mask = is_whitespace<simdv<N>, true>(simdv<N>(b)).to_bitmask() & m;
         return simdv<N>::countzero_bitmask(~mask & ALL_WHITESPACE);
     }
 
@@ -238,7 +243,7 @@ namespace httpvo::Implementation
             if HTTPVO_CXX17_LIKELY (offset < N)
                 return b + offset;
         }
-        return stop + first_non_whitespace<N>(stop);
+        return stop + first_non_whitespace<N>(stop, simd::make_mask<1>(size (end, stop));
     }
 
     template<>
@@ -258,16 +263,6 @@ namespace httpvo::Implementation
         else return _trim_whitespace<N>(b, end);
     }
 
-    inline status::statat_t find_request_method_end(const u8_t * const b, const std::size_t len, ReqLine& out)
-    {
-        const std::size_t offset = find_non_tchar<1>(b, len);
-        if HTTPVO_CXX17_UNLIKELY (offset == len)
-            return status::expect_bytes;
-        if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, true>(b[offset]))
-            return status::unexpected_char;
-        return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
-    }
-
     HTTPVO_START_NO_DIAGNOSE_ARRAY_BOUNDS
     template <int N>
     inline const u8_t * _find_request_url_end(const u8_t *b, const u8_t * const end)
@@ -279,7 +274,8 @@ namespace httpvo::Implementation
             if (offset < N)
                 return b + offset;
         }
-        return stop + is_out_of_range<0x21, 0x7e, N>(stop);
+        const mask_t mask = simd::make_mask<1>(size(end, stop));
+        return stop + is_out_of_range<0x21, 0x7e, N>(stop, mask);
     }
     HTTPVO_STOP_NO_DIAGNOSE_ARRAY_BOUNDS
     
@@ -298,70 +294,72 @@ namespace httpvo::Implementation
         return b;
     }
 
-    [[gnu::cold]] status::statat_t status_bad_or_expect(const u8_t * const e, const u8_t * const s)
-    {
-        if HTTPVO_CXX17_CONSTEXPR (setup::no_multispace)
-            return  {status::bad_whitespace, size(e, s)};
-        else return {status::expect_bytes,   size(e, s)};
-    }
-   
     template <int N>
-    inline status::statat_t _find_request_url_end_main(const u8_t *b, const std::size_t offset, const std::size_t len, ReqLine& out)
+    inline status _find_request_url_end_main(const u8_t *b, const u8_t *p, const u8_t * const end, ReqLine& out)
     {
-        const u8_t * const end = (b + offset) + len;
-        const u8_t *p = trim_whitespace<N>(b + offset, end);
+        p = trim_whitespace<N>(p, end);
         if HTTPVO_CXX17_UNLIKELY (p == end)
-            return status_bad_or_expect(b, p);
+            return status::error_multispace(p, b);
         p = _find_request_url_end<N>(p, end);
         if HTTPVO_CXX17_UNLIKELY (p == end)
-            return {status::expect_bytes, size(p, b)};
+            return status::error(status::expect_bytes, p, b);
         if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, true>( p[0] ))
-            return {status::unexpected_char, size(p, b)};
+            return status::error(status::unexpected_char, p, b);
         p += 1;
-        if HTTPVO_CXX17_UNLIKELY (p < end and (p = trim_whitespace<N>(p, end)) == end)
-            return status_bad_or_expect(p, b);
+        if HTTPVO_CXX17_UNLIKELY (p < end and setptr(p, trim_whitespace<N>(p, end)) == end)
+            return status::error_multispace(p, b);
         return {size(end, p) < (setup::req_line_min_size - 4), out.advance(size(p, b))};
     }
 
+    inline status find_request_method_end(const u8_t * const b, const std::size_t len, ReqLine& out)
+    {
+        const std::size_t offset = find_non_tchar<1>(b, len);
+        if HTTPVO_CXX17_UNLIKELY (offset == len)
+            return status::error(status::expect_bytes, len);
+        if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, true>(b[offset]))
+            return status::error(status::unexpected_char, offset);
+        return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
+    }
+
     template <int N>
-    inline status::statat_t find_request_url_end(const u8_t * const b, const std::size_t offset, const std::size_t len, ReqLine& out)
+    inline status::statat_t find_request_url_end(const u8_t * const b, const u8_t *p, const u8_t *end)
     {
         if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
-            return _find_request_url_end_main<1>(b, offset, len, out);
+            return _find_request_url_end_main<1>(b, p, end, out);
         else
         {
-            if HTTPVO_CXX17_LIKELY (len > (N - 1))
-                return _find_request_url_end_main<N>(b, offset, len, out);
-            return _find_request_url_end_main<1>(b, offset, len, out);
+            if HTTPVO_CXX17_LIKELY (end - p >= N)
+                return _find_request_url_end_main<N>(b, p, end, out);
+            return _find_request_url_end_main<1>(b, p, end, out);
         }
     }
 
     template<int N>
-    [[nodiscard]] inline status::statat_t end_of_method_and_url(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status end_of_method_and_url(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         if (run_size < setup::req_line_min_size)
-            return status::expect_bytes;
-        const status::statat_t end_of_method = find_request_method_end(b, run_size, out);
+            return status::error(status::expect_bytes, run_size);
+        const status end_of_method = find_request_method_end(b, run_size, out);
         if HTTPVO_CXX17_UNLIKELY (end_of_method != 0)
             return end_of_method;
         const  std::size_t o = end_of_method.offset + 1;
-        return find_request_url_end<N>(b, o, run_size - o, out);
+        return find_request_url_end<N>(b, b + o, b + run_size, out);
     }
 
     template<int N, class Protocol=Http_Protocol>
-    [[nodiscard]] inline status::statat_t Parse::request_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status Parse::request_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
-        const status::statat_t end_of_mthurl = end_of_method_and_url<N>(b, run_size, out);
+        const status end_of_mthurl = end_of_method_and_url<N>(b, run_size, out);
         if HTTPVO_CXX17_UNLIKELY (end_of_mthurl != 0)
             return end_of_mthurl;
         const std::size_t o = end_of_mthurl.offset;
         if HTTPVO_CXX17_UNLIKELY ((set_version<Protocol>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8)))
-            return {status::error, o};
+            return status::error(status::unexpected_error, o);
         return {0, o + 10};
     }
 
     template<int N, class Protocol=Http_Protocol>
-    [[nodiscard]] inline status::statat_t Parse::response_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
+    [[nodiscard]] inline status Parse::response_line(const u8_t *b, const std::size_t run_size, ReqLine& out) noexcept
     {
         return 0;
     }
