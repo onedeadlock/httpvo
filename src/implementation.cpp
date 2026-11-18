@@ -48,7 +48,7 @@ namespace httpvo::Implementation
         return static_cast<std::size_t>(e - s);
     }
 
-    inline void *setptr(void *lhs, void *rhs)
+    inline const void *setptr(const void *lhs, const void *rhs)
     {
         return (lhs = rhs);
     }
@@ -108,7 +108,7 @@ namespace httpvo::Implementation
     }
 
     template <int X, int Y, int N=1>
-    inline std::size_t is_out_of_range(const u8_t *, const mask_t);
+    inline std::size_t is_out_of_range(const u8_t *, const mask_t = constant::cff);
 
     template<>
     inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b, const mask_t)
@@ -117,7 +117,7 @@ namespace httpvo::Implementation
     }
 
     template <int X, int Y, int N>
-    inline std::size_t is_out_of_range(const u8_t * const b, const mask_t m=constant::cff)
+    inline std::size_t is_out_of_range(const u8_t * const b, const mask_t m)
     {
         static_assert(X == 0x21 and Y == 0x7e);
         const mask_t mask = simdv<N>(b).template off_range<X, Y>().to_bitmask() & m;
@@ -322,7 +322,7 @@ namespace httpvo::Implementation
     }
 
     template <int N>
-    inline status find_request_url_end(const u8_t * const b, const u8_t *p, const u8_t *end)
+    inline status find_request_url_end(const u8_t * const b, const u8_t *p, const u8_t *end, ReqLine& out)
     {
         if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _find_request_url_end_main<1>(b, p, end, out);

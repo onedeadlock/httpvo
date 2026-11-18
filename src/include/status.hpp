@@ -24,7 +24,7 @@ namespace httpvo
         constexpr status(const int s=0, const size_t o=0) : stat{s}, offset{o} {}
         constexpr operator int(void) const { return stat; }
 
-        static status error_mutispace(const u8_t * const e, const u8_t * const * s)
+        static status error_multispace(const u8_t * const e, const u8_t * const s)
         {
             const std::size_t offset = static_cast<std::size_t>(e - s);
             if HTTPVO_CXX17_CONSTEXPR (setup::no_multispace)

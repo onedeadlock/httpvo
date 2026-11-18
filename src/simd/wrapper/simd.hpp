@@ -57,7 +57,7 @@ namespace httpvo::simd
                assert(n <= 64);
           if HTTPVO_CXX17_CONSTEXPR (I == 1)
                return 0;
-          return T(1) << 0;
+          return mask_t(1) << 0;
      }
 
      template<int N>
@@ -70,9 +70,10 @@ namespace httpvo::simd
      template <typename T, T width, T splat>
      constexpr T mask_fill(void)
      {
-          static_assert(std::is_integral<T>() and not std::is_same<T, bool>() and std::is_unsigned<T>());
+          static_assert(std::is_integral<T>() and not std::is_same<T, bool>());
           // fill & mask
-          return static_cast<T>((1ULL << width) - 1) & static_cast<T>(MASK_SELECT[splat - 1] * constant::c01);
+          using U = typename std::make_unsigned<T>::type;
+          return static_cast<U>((1ULL << width) - 1) & static_cast<U>(MASK_SELECT[splat - 1] * constant::c01);
      }
 }
 #endif // HTTPVO_SIMD_IMPLEMENTAION_HPP
