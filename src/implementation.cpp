@@ -353,7 +353,7 @@ namespace httpvo::Implementation
         if HTTPVO_CXX17_UNLIKELY (end_of_mthurl != 0)
             return end_of_mthurl;
         const std::size_t o = end_of_mthurl.offset;
-        if HTTPVO_CXX17_UNLIKELY ((set_version<Protocol>(b + o, out) == status::unrecognized) | is_not_end_of_line(b + (o + 8), run_size - (o + 8)))
+        if HTTPVO_CXX17_UNLIKELY ((set_version<Protocol>(b + o, out) == status::unrecognized) or is_not_end_of_line(b + (o + 8), run_size - (o + 8)))
             return status::error(status::unexpected_error, o);
         return {0, o + 10};
     }

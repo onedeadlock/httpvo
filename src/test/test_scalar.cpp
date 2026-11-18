@@ -12,7 +12,7 @@ static void BM_speed_test_1(benchmark::State& state)
 
     for (auto _ : state)
     {
-        auto status = parser.request_line<1>(reinterpret_cast<uint8_t *>(request), len, req);
+        auto status = parser.request_line<8>(reinterpret_cast<uint8_t *>(request), len, req);
         if (status != 0)
         {
             std::cout << status.stat << ' ' << status.offset << std::endl;
