@@ -159,8 +159,10 @@
 
 #if CXX_VERSION >= 201703L
 #    define HTTPVO_CXX17_CONSTEXPR constexpr
+#    define httpvo_const inline
 #else
 #    define HTTPVO_CXX17_CONSTEXPR
+#    define httpvo_const static
 #endif
 
 #if HTTPVO_GNUC_COMPARTIBLE
@@ -209,9 +211,6 @@
 #    include <iostream>
 #endif
 
-#define U32(x)  static_cast<const u32_t>(x)
-#define U64(x)  static_cast<const u64_t>(x)
-#define U32P(b) reinterpret_cast<u32_t *>(b)[0]
 
 //////////////////////////////
 //////////// HTTPVO ///////////

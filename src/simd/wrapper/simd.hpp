@@ -50,6 +50,16 @@ namespace httpvo::simd
      constexpr u8_t WIDTH_SELECT[8]{31, 63, 15, 0, 31};
      constexpr u8_t MASK_SELECT[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
 
+     template<int I>
+     constexpr mask_t make_mask(int n)
+     {
+          if HTTPVO_CXX17_CONSTEXPR (setup::debug)
+               assert(n <= 64);
+          if HTTPVO_CXX17_CONSTEXPR (I == 1)
+               return 0;
+          return T(1) << 0;
+     }
+
      template<int N>
      constexpr int mask_width(void)
      {

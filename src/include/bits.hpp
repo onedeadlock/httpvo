@@ -96,7 +96,7 @@ namespace httpvo::bits
 
     inline int countzero64(const u64_t x) noexcept
     {
-#       if HTTPVO_GNUC_COMPARTIBLEa
+#       if HTTPVO_GNUC_COMPARTIBLE
             return __builtin_ctzll(x);
 #       elif HTTPVO_HAVE_MSVC && HTTPVO_ARM_ARCH
             return static_cast<int>(_CountTrailingZeros64(x));

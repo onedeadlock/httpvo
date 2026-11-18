@@ -243,7 +243,7 @@ namespace httpvo::Implementation
             if HTTPVO_CXX17_LIKELY (offset < N)
                 return b + offset;
         }
-        return stop + first_non_whitespace<N>(stop, simd::make_mask<1>(size (end, stop));
+        return stop + first_non_whitespace<N>(stop, simd::make_mask<1>(size(end, stop)));
     }
 
     template<>
@@ -322,7 +322,7 @@ namespace httpvo::Implementation
     }
 
     template <int N>
-    inline status::statat_t find_request_url_end(const u8_t * const b, const u8_t *p, const u8_t *end)
+    inline status find_request_url_end(const u8_t * const b, const u8_t *p, const u8_t *end)
     {
         if HTTPVO_CXX17_CONSTEXPR (setup::no_vectorize)
             return _find_request_url_end_main<1>(b, p, end, out);
