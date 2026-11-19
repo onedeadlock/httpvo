@@ -249,7 +249,7 @@ namespace httpvo::Implementation
     template<>
     noinline const u8_t * _trim_whitespace<1>(const u8_t *b, const u8_t * const end)
     {
-        while (++b < end and is_whitespace<u8_t, true>(b[0])) pass();
+        for (; b < end and is_whitespace<u8_t, true>( b[0] ); b++) pass();
         return b;
     }
 
@@ -314,7 +314,7 @@ namespace httpvo::Implementation
     inline status find_request_method_end(const u8_t * const b, const std::size_t len, ReqLine& out)
     {
         const std::size_t offset = find_non_tchar<1>(b, len);
-        if HTTPVO_CXX17_UNLIKELY (offset == len)
+        if HTTPVO_CXX17_UNLIKELY (offset == 1 | offset == len)
             return status::error(status::expect_bytes, len);
         if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, true>(b[offset]))
             return status::error(status::unexpected_char, offset);

@@ -51,13 +51,13 @@ namespace httpvo::simd
      constexpr u8_t MASK_SELECT[8]{0xff, 0xaa, 0, 0x88, 0, 0, 0, 0x80};
 
      template<int I>
-     constexpr mask_t make_mask(int n)
+     constexpr mask_t make_mask(const int n)
      {
           if HTTPVO_CXX17_CONSTEXPR (setup::debug)
-               assert(n <= 64);
+               assert(n <= std::numeric_limits<mask_t>::digits - 1);
           if HTTPVO_CXX17_CONSTEXPR (I == 1)
                return 0;
-          return mask_t(1) << 0;
+          else return (mask_t(1) << n) - 1;
      }
 
      template<int N>
@@ -68,7 +68,7 @@ namespace httpvo::simd
      }
 
      template <typename T, T width, T splat>
-     constexpr T mask_fill(void)
+     constexpr typename std::make_unsigned<T>::type mask_fill(void)
      {
           static_assert(std::is_integral<T>() and not std::is_same<T, bool>());
           // fill & mask
