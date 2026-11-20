@@ -1,6 +1,7 @@
 #ifndef HTTPVO_DEFINITION_H
 #define HTTPVO_DEFINITION_H
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <array>
 #include <type_traits>
@@ -166,13 +167,10 @@
 #endif
 
 #if HTTPVO_GNUC_COMPARTIBLE
-#    define inline    __attribute__((always_inline, flatten, artificial)) inline
 #    define noinline  __attribute__((noinline, cold))
 #elif HTTPVO_HAVE_MSVC
-#    define inline   __declspec(forceinline flatten) inline
 #    define noinline __declspec(noinline) 
 #else
-#    define inline inline
 #    define noinline
 #endif
 

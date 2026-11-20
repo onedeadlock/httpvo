@@ -115,7 +115,7 @@ namespace httpvo::Implementation
     }
 
     template <int X, int Y, int N=1>
-    inline std::size_t is_out_of_range(const u8_t *, const mask_t = constant::cff);
+    std::size_t is_out_of_range(const u8_t *, const mask_t = constant::cff);
 
     template<>
     inline std::size_t is_out_of_range<0x21, 0x7e, 1>(const u8_t * const b, const mask_t)
@@ -256,7 +256,7 @@ namespace httpvo::Implementation
     template<>
     noinline const u8_t * _trim_whitespace<1>(const u8_t *b, const u8_t * const end)
     {
-        for (; b < end and is_whitespace<u8_t, set::space>(b[0])); b++) pass();
+        for (; b < end and is_whitespace<u8_t, set::space>(b[0]); b++) pass();
         return b;
     }
 
@@ -324,7 +324,7 @@ namespace httpvo::Implementation
         const std::size_t offset = find_non_tchar<set::alpha>(b, len);
         if HTTPVO_CXX17_UNLIKELY ((offset == 1) | (offset == len))
             return status::error(status::expect_bytes, len);
-        if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, set::space>(b[offset])
+        if HTTPVO_CXX17_UNLIKELY (not is_whitespace<u8_t, set::space>(b[offset]))
             return status::error(status::unexpected_char, offset);
         return {(len - offset) < setup::req_line_min_size - 2, out.advance(offset)};
     }

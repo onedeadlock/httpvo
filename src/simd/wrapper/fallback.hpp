@@ -22,34 +22,34 @@ namespace httpvo::simd
             return x * constant::c01;
         }
 
-        static inline int countzero_bitmask(const mask_t m)
+        static int countzero_bitmask(const mask_t m)
         {
             return bits::countzero<uint_t>(static_cast<const uint_t>(m)) >> 3;
         }
 
-        inline mask_t to_bitmask(void) const noexcept
+        mask_t to_bitmask(void) const noexcept
         {
             return v;
         }
 
-        inline operator mask_t(void) const noexcept
+        operator mask_t(void) const noexcept
         {
             return v;
         }
 
-        inline simdv operator==(const int x) const noexcept
+        simdv operator==(const int x) const noexcept
         {
             const uint_t u = v ^ splat(x);
             return bits::andnot(constant::c80, u | ((u & constant::c7f) + constant::c7f));
         }
 
-        inline simdv operator|(const simdv &x) const noexcept
+        simdv operator|(const simdv &x) const noexcept
         {
             return v | x.v;
         }
 
         template <int A, int B>
-        inline simdv off_range(void) const noexcept
+        simdv off_range(void) const noexcept
         {
             static_assert(A < 0x7f && B < 0x80);
             constexpr uint_t a = splat(0x7f + A);
@@ -58,7 +58,7 @@ namespace httpvo::simd
             return ((a - x) | (b + x)) & bits::andnot(constant::c80, v);
         }
 
-        inline uint_t _is_not_letter(const uint_t u) const noexcept
+        uint_t _is_not_letter(const uint_t u) const noexcept
         {
             // :: u < 0x80
             constexpr uint_t A = splat(0x80 + 0x40);
@@ -68,7 +68,7 @@ namespace httpvo::simd
             return (Z + x) | (A - x); // above Z or below A 
         }
 
-        inline uint_t _is_not_number(const uint_t u) const noexcept
+        uint_t _is_not_number(const uint_t u) const noexcept
         {
             // :: u < 0x80
             constexpr uint_t N10 = splat(0x80 - 0xa);
@@ -77,7 +77,7 @@ namespace httpvo::simd
             return       x + N10; // is greater than 9                    
         }
 
-        inline uint_t _is_not_hyphen(const uint_t u) const noexcept
+        uint_t _is_not_hyphen(const uint_t u) const noexcept
         {
             // :: u < 0x80
             constexpr uint_t HYPHEN_NORM = splat(0x2d);
@@ -86,7 +86,7 @@ namespace httpvo::simd
         }
 
         template <int ALPHAONLY>
-        inline simdv fast_not_tchar(void) const noexcept
+        simdv fast_not_tchar(void) const noexcept
         {
             const uint_t x = v & constant::c80; // make v < 0x80
             if HTTPVO_CXX17_CONSTEXPR (ALPHAONLY)
@@ -95,13 +95,13 @@ namespace httpvo::simd
                 return ((_is_not_letter(x) & _is_not_number(x)) & (_is_not_hyphen(x) | v)) & constant::c80;
         }
 
-        inline simdv is_not_tchar(void) const noexcept
+        simdv is_not_tchar(void) const noexcept
         {
             return 0;
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv is_not_print_char(void) const noexcept
+        simdv is_not_print_char(void) const noexcept
         {
             const uint_t x = v & constant::c7f; // make v < 0x80
             // @not_print: (159 - v) > 127 when v < 32 (control bytes) therefore its bit 7 is left set whereas v => 32 unsets it

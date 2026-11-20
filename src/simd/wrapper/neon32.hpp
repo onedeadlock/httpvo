@@ -30,35 +30,35 @@ namespace httpvo::simd
             return vdup_n_u8(x);
         }
 
-        inline mask_t to_bitmask(void) const noexcept
+        mask_t to_bitmask(void) const noexcept
         {
             return vget_lane_u64(vand_u64(vreinterpret_u64_u8(v), vcreate_u64(constant::c80)));
         }
 
-        inline operator mask_t(void) const noexcept
+        operator mask_t(void) const noexcept
         {
             return to_bitmask();
         }
 
-        inline simdv operator==(const int x) const noexcept
+        simdv operator==(const int x) const noexcept
         {
             return vceq_u8(v, vdup_n_u8(x));
         }
 
-        inline simdv operator|(const simdv &x) const noexcept
+        simdv operator|(const simdv &x) const noexcept
         {
             return vorr_u8(v, x.v);
         }
 
         template <int A, int B>
-        inline simdv off_range(void) const noexcept
+        simdv off_range(void) const noexcept
         {
             uint8x8_t x = vsub_u8(v, vdup_n_u8(A));
             return vcgt_u8(x, vdup_n_u8(B - A));
         }
 
         template <int ALPHAONLY>
-        inline simdv fast_not_tchar(void) const noexcept
+        simdv fast_not_tchar(void) const noexcept
         {
             const uint8x16_t   ld0  = vld1q_u8(TCHAR_CLASS_LUT + 00);
             const uint8x16_t   ld1  = vld1q_u8(TCHAR_CLASS_LUT + 16);
@@ -72,13 +72,13 @@ namespace httpvo::simd
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv is_not_tchar(void) const noexcept
+        simdv is_not_tchar(void) const noexcept
         {
             return fast_not_tchar<0>();
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv is_not_print_char(void) const
+        simdv is_not_print_char(void) const
         {
             const uint8x8_t not_print = vorr_u8(vclt_u8(v, vcreate_u8(constant::c20)), vceq_u8(v, vcreate_u8(constant::c7f)));
             if HTTPVO_CXX17_CONSTEXPR (INCLUDE_TAB)

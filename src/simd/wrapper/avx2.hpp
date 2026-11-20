@@ -20,28 +20,28 @@ namespace httpvo::simd
             v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b));
         }
 
-        inline mask_t to_bitmask(void) const noexcept
+        mask_t to_bitmask(void) const noexcept
         {
             return _mm256_movemask_epi8(v);
         }
 
-        inline simdv operator|(const simdv& x) const noexcept
+        simdv operator|(const simdv& x) const noexcept
         {
             return _mm256_or_si256(v, x.v);
         }
 
-        inline simdv operator==(const int x) const noexcept
+        simdv operator==(const int x) const noexcept
         {
             return _mm256_cmpeq_epi8(v, _mm256_set1_epi8(x));
         }
 
-        inline operator mask_t(void) const noexcept
+        operator mask_t(void) const noexcept
         {
             return _mm256_movemask_epi8(v);
         }
 
         template<int A=0, int B=0>
-        inline simdv off_range(void) const noexcept
+        simdv off_range(void) const noexcept
         {
             constexpr int s = static_cast<int>(0x80 - A);
             constexpr int b = static_cast<int>((B - A) - 0x80);
@@ -50,12 +50,12 @@ namespace httpvo::simd
         }
 
         template <int ALPHAONLY>
-        inline simdv fast_not_tchar(void) const noexcept
+        simdv fast_not_tchar(void) const noexcept
         {
             return _mm256_setzero_si256();
         }
 
-        inline simdv is_not_tchar(void) const noexcept
+        simdv is_not_tchar(void) const noexcept
         {
             __m256i ld0    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(TCHAR_CLASS_LUT + 00)));
             __m256i ld1    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(TCHAR_CLASS_LUT + 16)));
@@ -64,7 +64,7 @@ namespace httpvo::simd
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv is_not_print_char(void) const noexcept
+        simdv is_not_print_char(void) const noexcept
         {
             __m256i ld0    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(CONTROL_CHAR_CLASS_LUT + 00)));
             __m256i ld1    = _mm256_broadcastsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i *>(CONTROL_CHAR_CLASS_LUT + 16)));
@@ -73,7 +73,7 @@ namespace httpvo::simd
             return _mm256_cmpeq_epi8(cls, _mm256_setzero_si256());
         }
 
-        static inline int countzero_bitmask(const mask_t m)
+        static int countzero_bitmask(const mask_t m)
         {
                return bits::countzero<u32_t>(static_cast<const u32_t>(m));
         }

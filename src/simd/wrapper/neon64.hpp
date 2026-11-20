@@ -24,41 +24,41 @@ namespace httpvo::simd
             v = vld1q_u8(b);
         }
 
-        inline u64_t to_bitmask(void) const noexcept
+        u64_t to_bitmask(void) const noexcept
         {
             const uint8x8_t x = vshrn_n_u16(vreintrepretq_u16_u8(v), 4);
             return vget_lane_u64(vreintrepretq_u64_u8(x), 0);
         }
 
-        inline simdv operator|(const simdv& x) const noexcept
+        simdv operator|(const simdv& x) const noexcept
         {
             return vorrq_u8(v, x.v);
         }
 
-        inline simdv operator==(const int x) const noexcept
+        simdv operator==(const int x) const noexcept
         {
             return vceqq_u8(v, vdupq_n_u8(x));
         }
 
-        inline operator mask_t(void) const noexcept
+        operator mask_t(void) const noexcept
         {
             return to_bitmask(v);
         }
 
         template <u8_t A = 0, u8_t B = 0>
-        inline simdv off_range(void) const noexcept
+        simdv off_range(void) const noexcept
         {
             const uint8x16_t x = vsubq_u8(v, vdupq_n_u8(A));
             return vcgtq_u8(w, vdupq_n_u8(B - A));
         }
 
         template <int ALPHAONLY>
-        inline simdv fast_not_tchar(void) const noexcept
+        simdv fast_not_tchar(void) const noexcept
         {
             return vdupq_n_u8(0);
         }
 
-        inline simdv _is_not_tchar_arm32(arm32_tag) const noexcept
+        simdv _is_not_tchar_arm32(arm32_tag) const noexcept
         {
             // TODO: check assembly, if the table load is hoisted out
             const uint8x16_t  ld0  = vld1q_u8(TCHAR_CLASS_LUT + 00);
@@ -76,7 +76,7 @@ namespace httpvo::simd
             return vcgtq_u8(rlo, rhi);
         }
 
-        inline simdv _is_not_tchar(arm64_tag) const noexcept
+        simdv _is_not_tchar(arm64_tag) const noexcept
         {
             uint8x16_t ld0 = vld1q_u8(TCHAR_CLASS_LUT + 00);
             uint8x16_t ld1 = vld1q_u8(TCHAR_CLASS_LUT + 16);
@@ -85,13 +85,13 @@ namespace httpvo::simd
             return vcgtq_u8(vqtbl1_u8(ld0, lo), vqtbl1_u8(ld1, hi));
         }
         
-        inline simdv is_not_tchar(void) const noexcept
+        simdv is_not_tchar(void) const noexcept
         {
             return _is_not_tchar(typename std::conditional<setup::arm64, arm64_tag, arm32_tag>::type{});
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv _is_not_print_char(arm32_tag) const noexcept
+        simdv _is_not_print_char(arm32_tag) const noexcept
         {
             const uint8x16_t not_print = vorrq_u8(vcltq_u8(v, vdupq_n_u8(0x20)), vceqq_u8(v, vdupq_n_u8(0x7f)));
             if HTTPVO_CXX17_CONSTEXPR (INCLUDE_TAB)
@@ -100,7 +100,7 @@ namespace httpvo::simd
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv _is_not_print_char(arm64_tag) const noexcept
+        simdv _is_not_print_char(arm64_tag) const noexcept
         {
             uint8x16_t ld0 = vqld1q_u8(CONTROL_CHAR_CLASS_LUT + 00);
             uint8x16_t ld1 = vqld1q_u8(CONTROL_CHAR_CLASS_LUT + 16);
@@ -110,7 +110,7 @@ namespace httpvo::simd
         }
   
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv is_not_print_char(void) const noexcept
+        simdv is_not_print_char(void) const noexcept
         {
             return is_not_print_char<INCLUDE_TAB>(typename std::conditional<setup::arm64, arm64_tag, arm32_tag>::type{});
         }

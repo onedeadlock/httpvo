@@ -20,28 +20,28 @@ namespace httpvo::simd
             v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(b));
         }
 
-        inline mask_t to_bitmask(void) const noexcept
+        mask_t to_bitmask(void) const noexcept
         {
             return _mm_movemask_epi8(v);
         }
 
-        inline simdv operator|(const simdv& x) const noexcept
+        simdv operator|(const simdv& x) const noexcept
         {
             return _mm_or_si128(v, x.v);
         }
 
-        inline simdv operator==(const int x) const noexcept
+        simdv operator==(const int x) const noexcept
         {
             return _mm_cmpeq_epi8(v, _mm_set1_epi8(x));
         }
 
-        inline operator mask_t(void) const noexcept
+        operator mask_t(void) const noexcept
         {
             return _mm_movemask_epi8(v);
         }
 
         template<int A=0, int B=0>
-        inline simdv off_range(void) const noexcept
+        simdv off_range(void) const noexcept
         {
             constexpr int s = static_cast<int>(0x80 - A);
             constexpr int b = static_cast<int>((B - A) - 0x80);
@@ -50,12 +50,12 @@ namespace httpvo::simd
         }
 
         template <int ALPHAONLY>
-        inline simdv fast_not_tchar(void) const noexcept
+        simdv fast_not_tchar(void) const noexcept
         {
             return _mm_setzero_si128();
         }
 
-        inline simdv is_not_tchar(void) const noexcept
+        simdv is_not_tchar(void) const noexcept
         {
             __m128i ld0    = _mm_load_si128(reinterpret_cast<const __m128i *>(TCHAR_CLASS_LUT + 00));
             __m128i ld1    = _mm_load_si128(reinterpret_cast<const __m128i *>(TCHAR_CLASS_LUT + 16));
@@ -64,7 +64,7 @@ namespace httpvo::simd
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
-        inline simdv is_not_print_char(void) const noexcept
+        simdv is_not_print_char(void) const noexcept
         {
             __m128i ld0    = _mm_load_si128(reinterpret_cast<const __m128i *>(CONTROL_CHAR_CLASS_LUT + 00));
             __m128i ld1    = _mm_load_si128(reinterpret_cast<const __m128i *>(CONTROL_CHAR_CLASS_LUT + 16));
