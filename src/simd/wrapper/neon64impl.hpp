@@ -87,7 +87,7 @@ namespace httpvo::simd
         
         inline simdv is_not_tchar(void) const noexcept
         {
-            return _is_not_tchar(typename std::conditional<setup::arm64, arm64_type, arm32_type>::type{});
+            return _is_not_tchar(typename std::conditional<setup::arm64, arm64_tag, arm32_tag>::type{});
         }
 
         template <bool INCLUDE_TAB = setup::priotize_horizontal_tab>
