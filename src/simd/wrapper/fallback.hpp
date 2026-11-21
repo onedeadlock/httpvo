@@ -112,8 +112,8 @@ namespace httpvo::simd
 
             if HTTPVO_CXX17_CONSTEXPR (INCLUDE_TAB)
             {
-                 const uint_t is_htab = (x ^ constant::c09) + constant::c7f;
-                 return ((out ^ is_htab) | v) & constant::c80; // HTAB exclude from bad chars
+                 const uint_t not_htab = (x ^ constant::c09) + constant::c7f;
+                 return ((out & not_htab) | v) & constant::c80; // HTAB exclude from bad chars
             }
             else return (out | v) & constant::c80; // HTAB include in bad chars 
         }
